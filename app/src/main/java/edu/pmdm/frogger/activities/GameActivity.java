@@ -1,6 +1,7 @@
 package edu.pmdm.frogger.activities;
 
 import android.os.Bundle;
+import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
@@ -22,5 +23,15 @@ public class GameActivity extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+
+        int level = getIntent().getIntExtra("level", 1);
+        // level será el número de nivel que se haya pulsado
+
+        TextView nivel = findViewById(R.id.nivel);
+        // Convertir el int a String para que no busque un recurso con ese ID
+        nivel.setText(String.valueOf(level));
     }
+
+
+
 }
