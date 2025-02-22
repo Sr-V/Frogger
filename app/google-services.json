@@ -30,6 +30,14 @@
           }
         },
         {
+          "client_id": "598320188030-p8ud4vv5mlui9n3mnt96638jo24sf2q2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "edu.pmdm.frogger",
+            "certificate_hash": "e632c53f8801841e1a5ae43abb536c8afe7bd474"
+          }
+        },
+        {
           "client_id": "598320188030-ugl156ls71kkmfud0rkbrvsepnl8lgru.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
