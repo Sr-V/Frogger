@@ -1,70 +1,103 @@
 package edu.pmdm.frogger.game;
 
 import android.content.Context;
+import android.util.Log;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
 public class GameEngine {
 
+    private static final String TAG = "GameEngine";
+
     private PlayerFrog player;
     private List<ObstacleCar> cars;
     private CollisionManager collisionManager;
 
-    // Carriles de coches (verticales)
-    private final float[] roadLines = {
-            0.82f, 0.74f, 0.66f, 0.58f, 0.50f
-    };
+    // Carriles de coches
+    private final float[] roadLines = { 0.82f, 0.74f, 0.66f, 0.58f, 0.50f };
 
-    // Líneas verticales de la rana
+    // Filas verticales de la rana
     private final float[] frogLines = {
-            0.92f, 0.87f, 0.79f, 0.71f, 0.63f, 0.55f
+            0.92f, 0.87f, 0.79f, 0.71f, 0.63f,
+            0.55f, 0.47f, 0.39f, 0.31f, 0.23f,
+            0.15f, 0.07f, 0.02f
     };
-    private int frogLineIndex = 0; // índice vertical
+    private int frogLineIndex = 0;
 
-    // ===== 5 COLUMNAS HORIZONTALES (en píxeles) =====
-    // columnsX se rellena en configurePositions(...)
+    // 5 columnas
     private int[] columnsX = new int[5];
-    private int frogColumnIndex = 2; // empezamos en la columna central
+    private int frogColumnIndex = 2;
 
     private int screenWidth;
     private int mapHeight;
 
-    public GameEngine(Context context, int level) {
-        collisionManager = new CollisionManager();
-        player = new PlayerFrog(context);
-        cars = new ArrayList<>();
+    // Control de vidas
+    private int lives = 3;
+
+    // Control de victoria
+    private boolean gameWon = false;
+    private boolean gameOver = false; // si se queda sin vidas
+
+    // Datos para comprobar subida de nivel
+    private int level;            // nivel actual que se está jugando
+    private int userCurrentLevel; // nivel actual del usuario en Firebase
+
+    // Listener para avisar a la Activity (mostrar alert, bloquear botones, etc.)
+    private GameEventsListener listener;
+
+    public GameEngine(Context context,
+                      int level,
+                      int userCurrentLevel,
+                      GameEventsListener listener) {
+        this.collisionManager = new CollisionManager();
+        this.player = new PlayerFrog(context);
+
+        // Asignamos el listener para el fin de la animación de muerte:
+        // Al finalizar, se reinician los obstáculos, se reposiciona la rana y se reactivan los botones.
+        this.player.setDeathAnimationListener(() -> resetAfterDeath());
+
+        this.cars = new ArrayList<>();
+        this.level = level;
+        this.userCurrentLevel = userCurrentLevel;
+        this.listener = listener;
     }
 
     public void configurePositions(int screenWidth, int mapHeight) {
         this.screenWidth = screenWidth;
         this.mapHeight   = mapHeight;
 
-        // 1) Escalamos la rana
+        // Escalamos la rana
         player.configureScale(mapHeight, 0.06f);
 
-        // 2) Creamos 5 columnas iguales
-        //    ancho de cada columna = screenWidth / 5
+        // 5 columnas
         int columnWidth = screenWidth / 5;
         for (int i = 0; i < 5; i++) {
-            // Queremos el centro de cada columna => i * columnWidth + (columnWidth/2)
             columnsX[i] = i * columnWidth + (columnWidth / 2);
         }
 
-        // 3) Posición vertical: frogLineIndex = 0 => primer "row"
+        // Posición inicial
         frogLineIndex = 0;
-        float frogY = frogLines[frogLineIndex] * mapHeight;
-
-        // 4) Posición horizontal: frogColumnIndex = 2 => columna central
         frogColumnIndex = 2;
         float frogScaledWidth = player.getScaledWidth();
-        // columnsX[2] es el centro de la columna => restamos la mitad del sprite
         float frogX = columnsX[frogColumnIndex] - (frogScaledWidth / 2f);
-
-        // 5) Guardar la posición inicial
+        float frogY = frogLines[frogLineIndex] * mapHeight;
         player.storeInitialPosition((int) frogX, (int) frogY);
 
-        // 6) Generar coches
+        // Generar coches
+        resetObstacles();
+
+        // Reiniciar flags
+        gameWon = false;
+        gameOver = false;
+        lives = 3;
+    }
+
+    /**
+     * Reinicia los obstáculos del mapa.
+     */
+    private void resetObstacles() {
         cars.clear();
         for (float line : roadLines) {
             float carY = line * mapHeight;
@@ -76,18 +109,56 @@ public class GameEngine {
         }
     }
 
+    /**
+     * Se encarga de reiniciar la partida tras la animación de muerte:
+     * reposiciona la rana, reinicia los obstáculos y desbloquea los botones.
+     */
+    public void resetAfterDeath() {
+        resetObstacles();
+        frogLineIndex = 0;
+        frogColumnIndex = 2;
+        float frogScaledWidth = player.getScaledWidth();
+        float frogX = columnsX[frogColumnIndex] - (frogScaledWidth / 2f);
+        float frogY = frogLines[frogLineIndex] * mapHeight;
+        player.storeInitialPosition((int) frogX, (int) frogY);
+        if (listener != null) {
+            listener.onButtonsBlocked(false);
+        }
+    }
+
     public void update() {
+        if (gameWon || gameOver) return; // si ya ganamos o perdimos, no actualizar
+
         player.update();
         for (ObstacleCar car : cars) {
             car.update();
         }
+
+        // Si la rana está en proceso de muerte, no comprobamos colisiones
+        if (player.isDead()) {
+            return;
+        }
+
+        // Colisiones
         for (ObstacleCar car : cars) {
             if (collisionManager.checkCollision(player, car)) {
-                // Al colisionar => anim de muerte
-                player.playDeathAnimation();
-                // Reiniciamos índice vertical y horizontal
-                frogLineIndex = 0;
-                frogColumnIndex = 2;
+                // Restar una vida
+                lives--;
+                if (lives > 0) {
+                    // Bloquear botones hasta que la rana reaparezca
+                    if (listener != null) {
+                        listener.onButtonsBlocked(true);
+                    }
+                    // Reproducir animación de muerte en el punto de colisión
+                    player.playDeathAnimation();
+                } else {
+                    // Sin vidas => derrota
+                    gameOver = true;
+                    if (listener != null) {
+                        listener.onGameLost();
+                    }
+                }
+                break; // salir del loop de coches
             }
         }
     }
@@ -101,42 +172,53 @@ public class GameEngine {
 
     // ===== MOVIMIENTO VERTICAL =====
     public void movePlayerUp() {
+        if (gameWon || gameOver) return;
+
         if (frogLineIndex < frogLines.length - 1) {
             frogLineIndex++;
-            // Mantenemos la columna
             float frogScaledWidth = player.getScaledWidth();
-
-            // X actual => columnsX[frogColumnIndex]
             float frogX = columnsX[frogColumnIndex] - (frogScaledWidth / 2f);
-
-            // Y => siguiente línea
             float frogY = frogLines[frogLineIndex] * mapHeight;
 
             player.setPosition((int) frogX, (int) frogY);
             player.moveUpSmall();
+
+            // Comprobar si hemos llegado a la última fila
+            if (frogLineIndex == frogLines.length - 1) {
+                gameWon = true;
+                Log.d(TAG, "¡Victoria! La rana ha llegado arriba.");
+
+                // 1) Comprobar si hay que incrementar nivel en Firebase
+                boolean shouldIncrementLevel = (level == userCurrentLevel);
+
+                // 2) Llamar al listener para informar del fin de partida
+                if (listener != null) {
+                    listener.onGameWon(shouldIncrementLevel);
+                }
+            }
         }
     }
 
     // ===== MOVIMIENTOS HORIZONTALES =====
     public void movePlayerLeft() {
+        if (gameWon || gameOver) return;
         if (frogColumnIndex > 0) {
             frogColumnIndex--;
-            // Mantenemos la línea vertical actual => player.y
-            float frogY = player.y;
             float frogScaledWidth = player.getScaledWidth();
+            float frogY = player.y;
             float frogX = columnsX[frogColumnIndex] - (frogScaledWidth / 2f);
 
             player.setPosition((int) frogX, (int) frogY);
-            player.moveLeft(); // anim horizontal
+            player.moveLeft();
         }
     }
 
     public void movePlayerRight() {
+        if (gameWon || gameOver) return;
         if (frogColumnIndex < columnsX.length - 1) {
             frogColumnIndex++;
-            // Mantenemos la línea vertical => player.y
-            float frogY = player.y;
             float frogScaledWidth = player.getScaledWidth();
+            float frogY = player.y;
             float frogX = columnsX[frogColumnIndex] - (frogScaledWidth / 2f);
 
             player.setPosition((int) frogX, (int) frogY);
