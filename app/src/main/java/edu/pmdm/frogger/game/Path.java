@@ -258,8 +258,8 @@ public class Path {
                 // Nivel sin llave.
                 int[][] basic1 = {
                         {1, 1, 1, 1, 1},
-                        {1, 1, 1, 1, 1},
-                        {0, 1, 1, 1, 0},
+                        {1, 1, 0, 1, 1},
+                        {0, 1, 0, 1, 0},
                         {0, 1, 1, 1, 0},
                         {0, 0, 1, 0, 0}
                 };
@@ -281,15 +281,15 @@ public class Path {
                 // Patrón básico para las primeras 3 filas; en la celda (fila 2, columna 2) se dibujará la llave encima de la pieza.
                 int[][] basic3 = {
                         {1, 1, 1, 1, 1},
-                        {1, 0, 1, 0, 1},
-                        {1, 1, 0, 1, 1}
+                        {1, 0, 1, 0, 1}
                 };
                 int[][] additional3 = {
+                        {1, 1, 0, 1, 1},
                         {0, 1, 1, 1, 0},
                         {0, 0, 1, 0, 0}
                 };
                 // La llave se coloca en la fila 2, columna 2 y las piezas adicionales se dibujan a partir de la fila 3.
-                return new PathConfig(basic3, true, 2, 0, additional3, 3, R.drawable.space_path, R.drawable.space_key);
+                return new PathConfig(basic3, true, 1, 2, additional3, 2, R.drawable.space_path, R.drawable.space_key);
             default:
                 // Configuración por defecto sin llave.
                 int[][] basicDefault = {
