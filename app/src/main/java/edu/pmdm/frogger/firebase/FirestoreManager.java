@@ -5,6 +5,8 @@ import com.google.android.gms.tasks.Task;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QuerySnapshot;
+
 import java.util.Map;
 
 /**
@@ -120,4 +122,11 @@ public class FirestoreManager {
         // Obtiene el documento y agrega el listener para manejar el resultado
         levelRef.get().addOnCompleteListener(listener);
     }
+
+    public void getAllLevels(OnCompleteListener<QuerySnapshot> listener) {
+        db.collection(COLLECTION_LEVELS)
+                .get()
+                .addOnCompleteListener(listener);
+    }
+
 }
