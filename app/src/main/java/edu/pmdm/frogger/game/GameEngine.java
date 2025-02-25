@@ -1,83 +1,80 @@
 package edu.pmdm.frogger.game;
 
 import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.RectF;
 import android.util.Log;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import edu.pmdm.frogger.R;
 
 public class GameEngine {
 
     private static final String TAG = "GameEngine";
 
     private PlayerFrog player;
-    private List<ObstacleCar> cars;
+    private List<Obstacle> obstacles;
     private CollisionManager collisionManager;
+    private Path path; // Camino seguro
 
-    // Carriles de coches
-    private final float[] roadLines = { 0.82f, 0.74f, 0.66f, 0.58f, 0.50f };
+    // Líneas para la rana
+    private final float[] frogLines = generateLines(0.92f, 0.02f, 13);
+    // Líneas para obstáculos (carretera)
+    private final float[] roadLines = generateLines(0.82f, 0.50f, 5);
+    // Líneas para la zona del camino
+    private final float[] pathLines = generateLines(0.43f, 0.08f, 5);
 
-    // Filas verticales de la rana
-    private final float[] frogLines = {
-            0.92f, 0.87f, 0.79f, 0.71f, 0.63f,
-            0.55f, 0.47f, 0.39f, 0.31f, 0.23f,
-            0.15f, 0.07f, 0.02f
-    };
     private int frogLineIndex = 0;
-
-    // 5 columnas
     private int[] columnsX = new int[5];
     private int frogColumnIndex = 2;
 
     private int screenWidth;
     private int mapHeight;
 
-    // Control de vidas
     private int lives = 3;
-
-    // Control de victoria
     private boolean gameWon = false;
-    private boolean gameOver = false; // si se queda sin vidas
-
-    // Datos para comprobar subida de nivel
-    private int level;            // nivel actual que se está jugando
-    private int userCurrentLevel; // nivel actual del usuario en Firebase
-
-    // Listener para avisar a la Activity (mostrar alert, bloquear botones, etc.)
+    private boolean gameOver = false;
+    private int level;
+    private int userCurrentLevel;
     private GameEventsListener listener;
 
-    public GameEngine(Context context,
-                      int level,
-                      int userCurrentLevel,
-                      GameEventsListener listener) {
+    public GameEngine(Context context, int level, int userCurrentLevel, GameEventsListener listener) {
         this.collisionManager = new CollisionManager();
         this.player = new PlayerFrog(context);
-
-        // Asignamos el listener para el fin de la animación de muerte:
-        // Al finalizar, se reinician los obstáculos, se reposiciona la rana y se reactivan los botones.
-        this.player.setDeathAnimationListener(() -> resetAfterDeath());
-
-        this.cars = new ArrayList<>();
+        // Registrar el listener para cuando termine la animación de muerte:
+        player.setDeathAnimationListener(new PlayerFrog.DeathAnimationListener() {
+            @Override
+            public void onDeathAnimationFinished() {
+                resetAfterDeath();
+            }
+        });
+        this.obstacles = new ArrayList<>();
         this.level = level;
         this.userCurrentLevel = userCurrentLevel;
         this.listener = listener;
     }
 
+    private float[] generateLines(float start, float end, int count) {
+        float[] lines = new float[count];
+        float step = (start - end) / (count - 1);
+        for (int i = 0; i < count; i++) {
+            lines[i] = start - i * step;
+        }
+        return lines;
+    }
+
     public void configurePositions(int screenWidth, int mapHeight) {
         this.screenWidth = screenWidth;
-        this.mapHeight   = mapHeight;
+        this.mapHeight = mapHeight;
 
-        // Escalamos la rana
         player.configureScale(mapHeight, 0.06f);
 
-        // 5 columnas
         int columnWidth = screenWidth / 5;
         for (int i = 0; i < 5; i++) {
             columnsX[i] = i * columnWidth + (columnWidth / 2);
         }
 
-        // Posición inicial
         frogLineIndex = 0;
         frogColumnIndex = 2;
         float frogScaledWidth = player.getScaledWidth();
@@ -85,34 +82,46 @@ public class GameEngine {
         float frogY = frogLines[frogLineIndex] * mapHeight;
         player.storeInitialPosition((int) frogX, (int) frogY);
 
-        // Generar coches
         resetObstacles();
 
-        // Reiniciar flags
+        // Crear el camino seguro utilizando la configuración para el nivel.
+        Path.PathConfig config = Path.getPathConfigForLevel(level);
+        path = new Path(player.context, screenWidth, mapHeight, config);
+
         gameWon = false;
         gameOver = false;
         lives = 3;
     }
 
-    /**
-     * Reinicia los obstáculos del mapa.
-     */
     private void resetObstacles() {
-        cars.clear();
+        obstacles.clear();
+        Random rand = new Random();
+
+        int drawableObstacle;
+        switch (level) {
+            case 1:
+                drawableObstacle = R.drawable.cars;
+                break;
+            case 2:
+                drawableObstacle = R.drawable.desert_cars;
+                break;
+            case 3:
+                drawableObstacle = R.drawable.cars_futuristic;
+                break;
+            default:
+                drawableObstacle = R.drawable.cars;
+        }
+
         for (float line : roadLines) {
             float carY = line * mapHeight;
-            float carX = new Random().nextFloat() * (screenWidth - 100);
-
-            ObstacleCar car = new ObstacleCar(player.context, (int) carX, (int) carY);
+            float carX = rand.nextFloat() * (screenWidth - 100);
+            Obstacle car = new Obstacle(player.context, (int) carX, (int) carY, drawableObstacle);
             car.configureScale(mapHeight, 0.10f);
-            cars.add(car);
+            car.setScreenWidth(screenWidth);
+            obstacles.add(car);
         }
     }
 
-    /**
-     * Se encarga de reiniciar la partida tras la animación de muerte:
-     * reposiciona la rana, reinicia los obstáculos y desbloquea los botones.
-     */
     public void resetAfterDeath() {
         resetObstacles();
         frogLineIndex = 0;
@@ -127,79 +136,84 @@ public class GameEngine {
     }
 
     public void update() {
-        if (gameWon || gameOver) return; // si ya ganamos o perdimos, no actualizar
+        if (gameWon || gameOver) return;
 
         player.update();
-        for (ObstacleCar car : cars) {
-            car.update();
+        for (Obstacle obstacle : obstacles) {
+            obstacle.update();
         }
 
-        // Si la rana está en proceso de muerte, no comprobamos colisiones
-        if (player.isDead()) {
-            return;
+        // Comprobación de colisión con obstáculos.
+        if (!player.isDead()) {
+            for (Obstacle obstacle : obstacles) {
+                if (collisionManager.checkCollision(player, obstacle)) {
+                    lives--;
+                    if (lives > 0) {
+                        if (listener != null) listener.onButtonsBlocked(true);
+                        player.playDeathAnimation();
+                    } else {
+                        gameOver = true;
+                        if (listener != null) listener.onGameLost();
+                    }
+                    break;
+                }
+            }
         }
 
-        // Colisiones
-        for (ObstacleCar car : cars) {
-            if (collisionManager.checkCollision(player, car)) {
-                // Restar una vida
+        // Verificar si se recoge la llave (para niveles con llave).
+        if (!player.isDead()) {
+            path.checkKeyCollected(player);
+        }
+
+        // Comprobación en la zona del camino.
+        if (!player.isDead()) {
+            float pathTop = pathLines[pathLines.length - 1] * mapHeight;
+            float pathBottom = pathLines[0] * mapHeight;
+            float frogFootY = player.getBoundingBox().bottom;
+            if (frogFootY >= pathTop && frogFootY <= pathBottom && !path.isFrogSafe(player)) {
                 lives--;
                 if (lives > 0) {
-                    // Bloquear botones hasta que la rana reaparezca
-                    if (listener != null) {
-                        listener.onButtonsBlocked(true);
-                    }
-                    // Reproducir animación de muerte en el punto de colisión
+                    if (listener != null) listener.onButtonsBlocked(true);
                     player.playDeathAnimation();
                 } else {
-                    // Sin vidas => derrota
                     gameOver = true;
-                    if (listener != null) {
-                        listener.onGameLost();
-                    }
+                    if (listener != null) listener.onGameLost();
                 }
-                break; // salir del loop de coches
             }
         }
     }
 
-    public void draw(android.graphics.Canvas canvas) {
+    public void draw(Canvas canvas) {
+        // Dibujar primero el camino seguro.
+        if (path != null) {
+            path.draw(canvas);
+        }
+        // Dibujar la rana encima del camino.
         player.draw(canvas);
-        for (ObstacleCar car : cars) {
-            car.draw(canvas);
+        // Dibujar los obstáculos encima de la rana.
+        for (Obstacle obstacle : obstacles) {
+            obstacle.draw(canvas);
         }
     }
 
-    // ===== MOVIMIENTO VERTICAL =====
     public void movePlayerUp() {
         if (gameWon || gameOver) return;
-
         if (frogLineIndex < frogLines.length - 1) {
             frogLineIndex++;
             float frogScaledWidth = player.getScaledWidth();
             float frogX = columnsX[frogColumnIndex] - (frogScaledWidth / 2f);
             float frogY = frogLines[frogLineIndex] * mapHeight;
-
             player.setPosition((int) frogX, (int) frogY);
             player.moveUpSmall();
-
-            // Comprobar si hemos llegado a la última fila
             if (frogLineIndex == frogLines.length - 1) {
                 gameWon = true;
                 Log.d(TAG, "¡Victoria! La rana ha llegado arriba.");
-
-                // 1) Comprobar si hay que incrementar nivel en Firebase
                 boolean shouldIncrementLevel = (level == userCurrentLevel);
-
-                // 2) Llamar al listener para informar del fin de partida
-                if (listener != null) {
-                    listener.onGameWon(shouldIncrementLevel);
-                }
+                if (listener != null) listener.onGameWon(shouldIncrementLevel);
             }
         }
     }
 
-    // ===== MOVIMIENTOS HORIZONTALES =====
     public void movePlayerLeft() {
         if (gameWon || gameOver) return;
         if (frogColumnIndex > 0) {
@@ -207,7 +221,6 @@ public class GameEngine {
             float frogScaledWidth = player.getScaledWidth();
             float frogY = player.y;
             float frogX = columnsX[frogColumnIndex] - (frogScaledWidth / 2f);
-
             player.setPosition((int) frogX, (int) frogY);
             player.moveLeft();
         }
@@ -220,7 +233,6 @@ public class GameEngine {
             float frogScaledWidth = player.getScaledWidth();
             float frogY = player.y;
             float frogX = columnsX[frogColumnIndex] - (frogScaledWidth / 2f);
-
             player.setPosition((int) frogX, (int) frogY);
             player.moveRight();
         }

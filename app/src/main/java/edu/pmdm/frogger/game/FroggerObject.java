@@ -3,7 +3,7 @@ package edu.pmdm.frogger.game;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.Rect;
+import android.graphics.RectF;
 
 public abstract class FroggerObject {
 
@@ -29,7 +29,14 @@ public abstract class FroggerObject {
         }
     }
 
-    public Rect getBoundingBox() {
-        return new Rect(x, y, x + width, y + height);
+    /**
+     * Bounding box con padding (para colisiones más precisas).
+     */
+    public RectF getBoundingBoxPrecise() {
+        float paddingX = width * 0.15f;
+        float paddingY = height * 0.15f;
+        return new RectF(x + paddingX, y + paddingY, x + width - paddingX, y + height - paddingY);
     }
+
+    public abstract RectF getBoundingBox();
 }

@@ -51,6 +51,8 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
 
         // Referencia al SurfaceView
         juegoView = findViewById(R.id.gameView);
+        // Configurar el mapa según el nivel recibido
+        juegoView.setLevel(level);
 
         // Botones
         btnLeft  = findViewById(R.id.btnLeft);
