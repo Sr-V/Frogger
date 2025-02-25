@@ -75,7 +75,10 @@ public class Obstacle extends FroggerObject {
     private void randomizeProperties() {
         Random rand = new Random();
 
-        speed = rand.nextInt(6) + 3;
+        // No re-asignamos la velocidad para mantenerla
+        // speed = rand.nextInt(6) + 3;
+
+        // Reasignamos la dirección y el sprite para dar variación.
         direction = rand.nextBoolean() ? 1 : -1;
 
         int randomIndex = rand.nextInt(cachedBitmaps.length);
@@ -109,6 +112,11 @@ public class Obstacle extends FroggerObject {
         cachedBitmaps[3] = Bitmap.createBitmap(fullSheet, singleWidth, singleHeight, singleWidth, singleHeight);
 
         fullSheet.recycle();
+    }
+
+    // Método agregado para ajustar la velocidad según el nivel.
+    public void setSpeed(int speed) {
+        this.speed = speed;
     }
 
     @Override

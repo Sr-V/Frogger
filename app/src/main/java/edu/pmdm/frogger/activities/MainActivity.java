@@ -4,45 +4,29 @@ import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
 import android.widget.TextView;
-
-import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.activity.EdgeToEdge;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
-
 import com.google.firebase.firestore.DocumentSnapshot;
-
 import java.util.HashMap;
 import java.util.Map;
-
 import edu.pmdm.frogger.R;
 import edu.pmdm.frogger.firebase.FirebaseAuthManager;
 import edu.pmdm.frogger.firebase.FirestoreManager;
 
-/**
- * Actividad principal de la aplicación Frogger.
- * <p>
- * Esta clase se encarga de:
- * <ul>
- *   <li>Configurar la interfaz de usuario para una experiencia edge-to-edge.</li>
- *   <li>Obtener o crear los datos del usuario en Firestore.</li>
- *   <li>Actualizar la UI con el nombre del usuario, nivel actual y puntuación.</li>
- *   <li>Permitir la navegación a GameActivity y LevelSelectionActivity.</li>
- *   <li>Gestionar el cierre de sesión.</li>
- * </ul>
- * </p>
- */
 public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "FroggerMain";
     private FirebaseAuthManager authManager;
     private FirestoreManager firestoreManager;
-    // Variable global para almacenar el nivel actual del usuario
+    // Nivel y puntuación actuales del usuario
     private int currentLevel = 1;
-    // Variable global para almacenar la puntuación actual del usuario
-    private int currentScore = 0;
+    private int currentScore = 0; // ahora representa totalStars
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,7 +35,7 @@ public class MainActivity extends AppCompatActivity {
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
 
-        // Ajusta los insets para que la UI se posicione correctamente
+        // Ajusta los insets para posicionar correctamente la UI
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
@@ -62,17 +46,50 @@ public class MainActivity extends AppCompatActivity {
         authManager = FirebaseAuthManager.getInstance(this);
         firestoreManager = FirestoreManager.getInstance();
 
+        // Inicialmente se oculta el contenido principal
+        findViewById(R.id.tvUserName).setVisibility(View.GONE);
+        findViewById(R.id.tvCurrentLevel).setVisibility(View.GONE);
+        findViewById(R.id.tvCurrentScore).setVisibility(View.GONE);
+        findViewById(R.id.playGame).setVisibility(View.GONE);
+        findViewById(R.id.levels).setVisibility(View.GONE);
+        findViewById(R.id.btnGoogleLogout).setVisibility(View.GONE);
+
+        // Se muestra el ProgressBar mientras se cargan los datos
+        findViewById(R.id.progressBar).setVisibility(View.VISIBLE);
+
         // Obtiene o crea los datos del usuario en Firestore
         getUserData();
 
         // Listener para el botón de LOGOUT
         findViewById(R.id.btnGoogleLogout).setOnClickListener(v -> signOut());
 
-        // Listener para el botón PLAY GAME: envía a GameActivity el nivel actual del usuario
+        // Listener para el botón PLAY GAME:
+        // Si currentLevel es 4, se muestra un AlertDialog informando que no existen nuevos niveles,
+        // ofreciendo jugar el nivel 3 o ir a LevelSelectionActivity.
         findViewById(R.id.playGame).setOnClickListener(v -> {
-            Intent intent = new Intent(MainActivity.this, GameActivity.class);
-            intent.putExtra("level", currentLevel);
-            startActivity(intent);
+            if (currentLevel == 4) {
+                new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("Niveles no disponibles")
+                        .setMessage("No existen niveles nuevos. El último nivel disponible es el 3.\n\n¿Deseas ir a la selección de niveles o jugar el último nivel disponible?")
+                        .setPositiveButton("Jugar nivel 3", (dialog, which) -> {
+                            Intent intent = new Intent(MainActivity.this, GameActivity.class);
+                            intent.putExtra("level", 3);
+                            // Se sigue pasando currentLevel para comparación en GameActivity si fuera necesario
+                            intent.putExtra("userCurrentLevel", currentLevel);
+                            startActivity(intent);
+                        })
+                        .setNegativeButton("Seleccionar nivel", (dialog, which) -> {
+                            Intent intent = new Intent(MainActivity.this, LevelSelectionActivity.class);
+                            startActivity(intent);
+                        })
+                        .setCancelable(false)
+                        .show();
+            } else {
+                Intent intent = new Intent(MainActivity.this, GameActivity.class);
+                intent.putExtra("level", currentLevel);
+                intent.putExtra("userCurrentLevel", currentLevel);
+                startActivity(intent);
+            }
         });
 
         // Listener para el botón LEVELS: envía a LevelSelectionActivity para la selección de niveles
@@ -84,15 +101,13 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * Obtiene el documento del usuario en Firestore. Si no existe, lo crea con datos por defecto.
-     * <p>
-     * Los datos por defecto incluyen:
-     * <ul>
-     *   <li>displayName: nombre del usuario autenticado.</li>
-     *   <li>email: correo electrónico del usuario autenticado.</li>
-     *   <li>currentLevel: nivel inicial (1).</li>
-     *   <li>score: puntuación inicial (0).</li>
-     * </ul>
-     * </p>
+     * Los campos iniciales son:
+     * - currentLevel por defecto 1
+     * - displayName del usuario logueado
+     * - email del usuario logueado
+     * - totalStars por defecto 0
+     * Además, se crea una subcolección "maps" con los niveles obtenidos de la colección "levels" de Firebase,
+     * asignando stars = 0 a cada uno.
      */
     private void getUserData() {
         String uid = authManager.getCurrentUser().getUid();
@@ -100,25 +115,27 @@ public class MainActivity extends AppCompatActivity {
             if (task.isSuccessful()) {
                 DocumentSnapshot document = task.getResult();
                 if (document != null && document.exists()) {
-                    // Si el documento existe, actualiza la UI y guarda el nivel y puntuación actuales del usuario
+                    // Si el documento existe, actualiza la UI y guarda el nivel y totalStars actuales
                     String displayName = document.getString("displayName");
                     Long levelLong = document.getLong("currentLevel");
                     currentLevel = (levelLong != null) ? levelLong.intValue() : 1;
-                    Long scoreLong = document.getLong("score");
-                    currentScore = (scoreLong != null) ? scoreLong.intValue() : 0;
+                    Long starsLong = document.getLong("totalStars");
+                    currentScore = (starsLong != null) ? starsLong.intValue() : 0;
                     updateUIWithUserData(displayName, currentLevel, currentScore);
                 } else {
                     // Si el documento no existe, crea un nuevo documento con datos por defecto
                     Map<String, Object> userData = new HashMap<>();
                     userData.put("displayName", authManager.getCurrentUser().getDisplayName());
                     userData.put("email", authManager.getCurrentUser().getEmail());
-                    userData.put("currentLevel", 1); // Nivel inicial
-                    userData.put("score", 0);        // Puntuación inicial
+                    userData.put("currentLevel", 1);
+                    userData.put("totalStars", 0);
 
                     firestoreManager.createOrUpdateUser(uid, userData)
                             .addOnCompleteListener(createTask -> {
                                 if (createTask.isSuccessful()) {
                                     Log.d(TAG, "Usuario creado exitosamente en Firestore");
+                                    // Crea la subcolección "maps" con la información de cada nivel
+                                    crearSubcoleccionMaps(uid);
                                     updateUIWithUserData(authManager.getCurrentUser().getDisplayName(), 1, 0);
                                 } else {
                                     Log.e(TAG, "Error al crear usuario", createTask.getException());
@@ -132,25 +149,55 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Actualiza la interfaz de usuario con la información obtenida del usuario.
+     * Crea la subcolección "maps" para el usuario, basándose en los niveles obtenidos de la colección "levels"
+     * y asigna stars = 0 para cada uno.
      *
-     * @param displayName Nombre del usuario para mostrar en la UI.
-     * @param level       Nivel actual del usuario.
-     * @param score       Puntuación actual del usuario.
+     * @param uid Identificador único del usuario.
+     */
+    private void crearSubcoleccionMaps(String uid) {
+        firestoreManager.getAllLevels(task -> {
+            if (task.isSuccessful() && task.getResult() != null) {
+                task.getResult().getDocuments().forEach(document -> {
+                    String levelId = document.getId();
+                    Map<String, Object> levelData = new HashMap<>();
+                    // Se pueden incluir otros campos del nivel, por ejemplo: name, theme, etc.
+                    levelData.put("name", document.getString("name"));
+                    levelData.put("stars", 0); // Estrellas por defecto
+                    // Guarda el documento en la subcolección "maps" del usuario
+                    firestoreManager.createOrUpdateUserMap(uid, levelId, levelData);
+                });
+            } else {
+                Log.e(TAG, "Error al obtener niveles", task.getException());
+            }
+        });
+    }
+
+    /**
+     * Actualiza la UI con la información del usuario y muestra el contenido principal.
+     *
+     * @param displayName Nombre del usuario.
+     * @param level       Nivel actual.
+     * @param score       Total de estrellas.
      */
     @SuppressLint("SetTextI18n")
     private void updateUIWithUserData(String displayName, int level, int score) {
-        // Actualiza el TextView con el nombre del usuario
         TextView tvUserName = findViewById(R.id.tvUserName);
         if (displayName != null) {
             tvUserName.setText("Bienvenido " + displayName);
         }
-        // Actualiza el TextView con el nivel actual
         TextView tvCurrentLevel = findViewById(R.id.tvCurrentLevel);
         tvCurrentLevel.setText("Nivel: " + level);
-        // Actualiza el TextView con la puntuación actual
         TextView tvCurrentScore = findViewById(R.id.tvCurrentScore);
-        tvCurrentScore.setText("Puntuación: " + score);
+        tvCurrentScore.setText("Estrellas Totales: " + score);
+
+        // Oculta el ProgressBar y muestra el contenido principal
+        findViewById(R.id.progressBar).setVisibility(View.GONE);
+        findViewById(R.id.tvUserName).setVisibility(View.VISIBLE);
+        findViewById(R.id.tvCurrentLevel).setVisibility(View.VISIBLE);
+        findViewById(R.id.tvCurrentScore).setVisibility(View.VISIBLE);
+        findViewById(R.id.playGame).setVisibility(View.VISIBLE);
+        findViewById(R.id.levels).setVisibility(View.VISIBLE);
+        findViewById(R.id.btnGoogleLogout).setVisibility(View.VISIBLE);
     }
 
     /**
@@ -161,7 +208,6 @@ public class MainActivity extends AppCompatActivity {
             if (task.isSuccessful()) {
                 Log.d(TAG, "Google sign out successful");
             }
-            // Redirige a LoginActivity
             Intent intent = new Intent(MainActivity.this, LoginActivity.class);
             startActivity(intent);
             finish();

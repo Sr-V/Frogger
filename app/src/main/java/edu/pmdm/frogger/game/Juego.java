@@ -5,10 +5,11 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Rect;
+import android.graphics.Paint;
+import android.graphics.Color;
 import android.util.AttributeSet;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-
 import edu.pmdm.frogger.R;
 
 public class Juego extends SurfaceView implements SurfaceHolder.Callback {
@@ -59,8 +60,7 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
     }
 
     @Override
-    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-    }
+    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) { }
 
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
@@ -102,6 +102,15 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
         }
         if (gameEngine != null) {
             gameEngine.draw(canvas);
+            // Dibujar la barra de tiempo en la parte superior
+            float timeRatio = gameEngine.getTimeRatio();
+            int barHeight = 20;
+            Paint bgPaint = new Paint();
+            bgPaint.setColor(Color.DKGRAY);
+            Paint timeBarPaint = new Paint();
+            timeBarPaint.setColor(Color.RED);
+            canvas.drawRect(0, 0, canvasWidth, barHeight, bgPaint);
+            canvas.drawRect(0, 0, canvasWidth * timeRatio, barHeight, timeBarPaint);
         }
     }
 
@@ -120,6 +129,12 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
     public void movePlayerRight() {
         if (gameEngine != null) {
             gameEngine.movePlayerRight();
+        }
+    }
+
+    public void movePlayerDown() {
+        if (gameEngine != null) {
+            gameEngine.movePlayerDown();
         }
     }
 }
