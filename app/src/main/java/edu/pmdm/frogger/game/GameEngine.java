@@ -2,7 +2,6 @@ package edu.pmdm.frogger.game;
 
 import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.RectF;
 import android.util.Log;
 import java.util.ArrayList;
 import java.util.List;
@@ -106,7 +105,7 @@ public class GameEngine {
                 drawableObstacle = R.drawable.desert_cars;
                 break;
             case 3:
-                drawableObstacle = R.drawable.cars_futuristic;
+                drawableObstacle = R.drawable.space_cars;
                 break;
             default:
                 drawableObstacle = R.drawable.cars;
