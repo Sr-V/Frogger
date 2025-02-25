@@ -123,10 +123,34 @@ public class FirestoreManager {
         levelRef.get().addOnCompleteListener(listener);
     }
 
+    /**
+     * Obtiene todos los documentos de la colección "levels".
+     *
+     * @param listener Listener que manejará el resultado de la consulta.
+     */
     public void getAllLevels(OnCompleteListener<QuerySnapshot> listener) {
         db.collection(COLLECTION_LEVELS)
                 .get()
                 .addOnCompleteListener(listener);
     }
 
+    /**
+     * Crea o actualiza un documento en la subcolección "maps" de un usuario.
+     * <p>
+     * Este método se utiliza para crear o actualizar la información de cada nivel (mapa)
+     * en la subcolección "maps" dentro del documento del usuario.
+     * </p>
+     *
+     * @param uid       Identificador único del usuario.
+     * @param levelId   Identificador del nivel.
+     * @param levelData Mapa con los datos del nivel, por ejemplo, "name" y "stars".
+     * @return Tarea asíncrona que indica el resultado de la operación.
+     */
+    public Task<Void> createOrUpdateUserMap(String uid, String levelId, Map<String, Object> levelData) {
+        DocumentReference mapRef = db.collection(COLLECTION_USERS)
+                .document(uid)
+                .collection("maps")
+                .document(levelId);
+        return mapRef.set(levelData);
+    }
 }
