@@ -30,11 +30,43 @@
           }
         },
         {
+          "client_id": "598320188030-9dv48j7j7u6l8gt5g34d29ikbae4fgei.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "edu.pmdm.frogger",
+            "certificate_hash": "9b9520e80159316d50433b873e78fa7f8af57ef6"
+          }
+        },
+        {
+          "client_id": "598320188030-cpjvmnrk48p0fionkeip6ijgoti9nr2t.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "edu.pmdm.frogger",
+            "certificate_hash": "fef1450d765df2cf93288011f1fa298bf7050cb7"
+          }
+        },
+        {
+          "client_id": "598320188030-jgj28f56slkh49m4i7tfg1n6v9inqe0f.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "edu.pmdm.frogger",
+            "certificate_hash": "b7ce9287941418311c41a326b66127661029456a"
+          }
+        },
+        {
           "client_id": "598320188030-p8ud4vv5mlui9n3mnt96638jo24sf2q2.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "edu.pmdm.frogger",
             "certificate_hash": "e632c53f8801841e1a5ae43abb536c8afe7bd474"
+          }
+        },
+        {
+          "client_id": "598320188030-s0dr4uh65ehvniiov6pkms0e8cvpdf3e.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "edu.pmdm.frogger",
+            "certificate_hash": "8f9769c633ad6f091187fb849c787487ad9124c8"
           }
         },
         {
