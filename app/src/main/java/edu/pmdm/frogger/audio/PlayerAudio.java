@@ -56,12 +56,6 @@ public class PlayerAudio {
 
     public void idleCroak(Context c){
         MediaPlayer mp = MediaPlayer.create(c, R.raw.frog_croak);
-        try {
-            mp.wait(5000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        mp.start();
         mp.setLooping(true);
         new Handler().postDelayed(mp::start, 5000);
 
