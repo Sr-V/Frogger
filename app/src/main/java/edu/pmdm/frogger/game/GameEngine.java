@@ -1,6 +1,8 @@
 package edu.pmdm.frogger.game;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.util.Log;
 import java.util.ArrayList;
@@ -46,6 +48,11 @@ public class GameEngine {
     private long levelStartTime;   // tiempo de inicio del nivel
     private boolean lostByTime = false; // Indica si se perdió por agotar el tiempo
 
+    private Bitmap originalLifeBitmap;
+    private Bitmap lifeBitmap;
+    private int blinkCounter = 0;
+    private static final int BLINK_DURATION = 30;
+
     public GameEngine(Context context, int level, int userCurrentLevel, GameEventsListener listener) {
         this.collisionManager = new CollisionManager();
         this.player = new PlayerFrog(context);
@@ -62,6 +69,9 @@ public class GameEngine {
         this.listener = listener;
         this.gam = GameAudioManager.getInstance();
         this.context = context;
+
+        originalLifeBitmap = BitmapFactory.decodeResource(context.getResources(), R.drawable.frog_life);
+
     }
 
     private float[] generateLines(float start, float end, int count) {
@@ -76,6 +86,10 @@ public class GameEngine {
     public void configurePositions(int screenWidth, int mapHeight) {
         this.screenWidth = screenWidth;
         this.mapHeight = mapHeight;
+
+        int lifeSize = (int) (mapHeight * 0.06f);
+
+        lifeBitmap = Bitmap.createScaledBitmap(originalLifeBitmap, lifeSize, lifeSize, true);
 
         player.configureScale(mapHeight, 0.06f);
 
@@ -258,6 +272,32 @@ public class GameEngine {
         for (Obstacle obstacle : obstacles) {
             obstacle.draw(canvas);
         }
+
+        drawLives(canvas);
+
+    }
+
+    private void drawLives(Canvas canvas){
+        int lifeSpacing = 10;
+        int lifeSize = lifeBitmap.getWidth();
+        int startX = 20;
+        int startY = 20;
+
+        for(int i = 0; i < lives; i++){
+            int lifeX = startX + i *(lifeSize + lifeSpacing);
+            int lifeY = startY;
+
+            if(i == lives -1 && (blinkCounter / (BLINK_DURATION / 2)) % 2 == 0){
+                continue;
+            }
+            canvas.drawBitmap(lifeBitmap, lifeX, lifeY, null);
+        }
+
+        blinkCounter++;
+        if (blinkCounter >= BLINK_DURATION) {
+            blinkCounter = 0;
+        }
+
     }
 
     public void movePlayerUp() {
