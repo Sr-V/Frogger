@@ -18,6 +18,7 @@ import java.util.Map;
 import edu.pmdm.frogger.R;
 import edu.pmdm.frogger.firebase.FirebaseAuthManager;
 import edu.pmdm.frogger.firebase.FirestoreManager;
+import edu.pmdm.frogger.utils.GameAudioManager;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -27,6 +28,7 @@ public class MainActivity extends AppCompatActivity {
     // Nivel y puntuación actuales del usuario
     private int currentLevel = 1;
     private int currentScore = 0; // ahora representa totalStars
+    private GameAudioManager gam = GameAudioManager.getInstance();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,6 +43,7 @@ public class MainActivity extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+
 
         // Inicializa los gestores de autenticación y Firestore
         authManager = FirebaseAuthManager.getInstance(this);
@@ -61,7 +64,10 @@ public class MainActivity extends AppCompatActivity {
         getUserData();
 
         // Listener para el botón de LOGOUT
-        findViewById(R.id.btnGoogleLogout).setOnClickListener(v -> signOut());
+        findViewById(R.id.btnGoogleLogout).setOnClickListener(v -> {
+            signOut();
+            finish();
+        });
 
         // Listener para el botón PLAY GAME:
         // Si currentLevel es 4, se muestra un AlertDialog informando que no existen nuevos niveles,
@@ -85,6 +91,7 @@ public class MainActivity extends AppCompatActivity {
                         .setCancelable(false)
                         .show();
             } else {
+                gam.stopMainThemeSong();
                 Intent intent = new Intent(MainActivity.this, GameActivity.class);
                 intent.putExtra("level", currentLevel);
                 intent.putExtra("userCurrentLevel", currentLevel);
@@ -212,5 +219,32 @@ public class MainActivity extends AppCompatActivity {
             startActivity(intent);
             finish();
         });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        Log.d("OnDestroy","Destruida");
+        gam.stopMainThemeSong();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        Log.d("OnPause","Pausada");
+        gam.stopMainThemeSong();
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Log.d("OnResume","Resumida");
+        gam.mainThemeSong(this);
+    }
+
+    @Override
+    public void onBackPressed() {
+        super.onBackPressed();
+        finish();
     }
 }
