@@ -9,5 +9,4 @@
     <item android:drawable="@drawable/frogger_down2" android:duration="500" />
     <item android:drawable="@drawable/frogger_down3" android:duration="500" />
     <item android:drawable="@drawable/frogger_down4" android:duration="500" />
-    <item android:drawable="@drawable/frogger_down5" android:duration="500" />
 </animation-list>
