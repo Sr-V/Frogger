@@ -386,6 +386,14 @@ public class GameEngine {
         return levelTimeLimit;
     }
 
+    public boolean isGameWon() {
+        return gameWon;
+    }
+
+    public boolean isGameOver() {
+        return gameOver;
+    }
+
     // Getter para saber si se perdió por tiempo
     public boolean isLostByTime() {
         return lostByTime;
