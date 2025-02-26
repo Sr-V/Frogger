@@ -28,6 +28,7 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
     private int level;            // Nivel que se está jugando
     private int userCurrentLevel; // Nivel actual del usuario en Firebase
     private GameAudioManager gam = GameAudioManager.getInstance();
+    private boolean paused = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -109,7 +110,6 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
 
         if(level == 1){
             gam.stopLevelOneTheme();
-            Log.d("Audio", "Pasa");
             gam.stopIdleSound();
         }
         if(level == 2){
@@ -135,18 +135,15 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
 
     private void showDefeatAlert() {
         String message;
+        gam.stopIdleSound();
         if(level == 1){
             gam.stopLevelOneTheme();
-            Log.d("Audio", "Pasa");
-            gam.stopIdleSound();
         }
         if(level == 2){
             gam.stopLevelTwoTheme();
-            gam.stopIdleSound();
         }
         if(level == 3){
             gam.stopLevelThreeTheme();
-            gam.stopIdleSound();
         }
         if (gameEngine.isLostByTime()) {
             message = "¡Tiempo agotado!\nNo lograste completar el nivel a tiempo.";
@@ -175,16 +172,54 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        gam.stopLevelOneTheme();
-        gam.stopLevelTwoTheme();
-        gam.stopLevelThreeTheme();
+        gam.stopIdleSound();
+        if(level == 1){
+            gam.stopLevelOneTheme();
+        }
+        if(level == 2){
+            gam.stopLevelTwoTheme();
+        }
+        if(level == 3){
+            gam.stopLevelThreeTheme();
+        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        gam.stopLevelOneTheme();
-        gam.stopLevelTwoTheme();
-        gam.stopLevelThreeTheme();
+        gam.stopIdleSound();
+        if(level == 1){
+            gam.stopLevelOneTheme();
+        }
+        if(level == 2){
+            gam.stopLevelTwoTheme();
+        }
+        if(level == 3){
+            gam.stopLevelThreeTheme();
+        }
+        paused = true;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if(paused) {
+            if (level == 1) {
+                gam.levelOneTheme(this);
+                gam.idleCroak(this);
+                gam.carHonks(this);
+            }
+            if (level == 2) {
+                gam.levelTwoTheme(this);
+                gam.idleCroak(this);
+                gam.carHonks(this);
+            }
+            if (level == 3) {
+                gam.levelThreeTheme(this);
+                gam.idleCroak(this);
+                gam.carHonks(this);
+            }
+        }
+        paused = false;
     }
 }
