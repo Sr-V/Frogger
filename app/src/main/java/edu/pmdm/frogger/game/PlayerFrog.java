@@ -13,6 +13,7 @@ public class PlayerFrog extends FroggerObject {
 
     // Animaciones
     private AnimationDrawable animIdleRight;
+    private AnimationDrawable animDown;
     private AnimationDrawable animUp;
     private AnimationDrawable animHorizontal;
     private AnimationDrawable animDeath;
@@ -58,6 +59,11 @@ public class PlayerFrog extends FroggerObject {
         Drawable upDrawable = context.getResources().getDrawable(R.drawable.frogger_up);
         if (upDrawable instanceof AnimationDrawable) {
             animUp = (AnimationDrawable) upDrawable;
+        }
+
+        Drawable downDrawable = context.getResources().getDrawable(R.drawable.frogger_down);
+        if (downDrawable instanceof AnimationDrawable) {
+            animDown = (AnimationDrawable) downDrawable;
         }
 
         Drawable deathDrawable = context.getResources().getDrawable(R.drawable.frogger_death);
@@ -167,6 +173,12 @@ public class PlayerFrog extends FroggerObject {
         if (isDead) return;
         facingLeft = true;
         startAnimation(animHorizontal);
+    }
+
+    public void moveDown() {
+        if (isDead) return;
+        facingLeft = true;
+        startAnimation(animDown);
     }
 
     public void moveRight() {

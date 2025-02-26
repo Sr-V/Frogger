@@ -5,11 +5,13 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Rect;
+import android.graphics.Paint;
+import android.graphics.Color;
 import android.util.AttributeSet;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-
 import edu.pmdm.frogger.R;
+import edu.pmdm.frogger.utils.GameAudioManager;
 
 public class Juego extends SurfaceView implements SurfaceHolder.Callback {
 
@@ -17,6 +19,7 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
     private GameEngine gameEngine;
     private Bitmap background;
     private boolean positionsConfigured = false;
+    private GameAudioManager gam = GameAudioManager.getInstance();
 
     public Juego(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -28,15 +31,27 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
         switch (level) {
             case 1:
                 mapResource = R.drawable.map_level1;
+                gam.levelOneTheme(getContext());
+                gam.idleCroak(getContext());
+                gam.carHonks(getContext());
                 break;
             case 2:
                 mapResource = R.drawable.map_level2;
+                gam.levelTwoTheme(getContext());
+                gam.idleCroak(getContext());
+                gam.carHonks(getContext());
                 break;
             case 3:
                 mapResource = R.drawable.map_level3;
+                gam.levelThreeTheme(getContext());
+                gam.idleCroak(getContext());
+                gam.carHonks(getContext());
                 break;
             default:
                 mapResource = R.drawable.map_level1;
+                gam.levelOneTheme(getContext());
+                gam.idleCroak(getContext());
+                gam.carHonks(getContext());
         }
         background = BitmapFactory.decodeResource(getResources(), mapResource);
     }
@@ -59,8 +74,7 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
     }
 
     @Override
-    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-    }
+    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) { }
 
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
@@ -102,24 +116,43 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
         }
         if (gameEngine != null) {
             gameEngine.draw(canvas);
+            // Dibujar la barra de tiempo en la parte superior
+            float timeRatio = gameEngine.getTimeRatio();
+            int barHeight = 20;
+            Paint bgPaint = new Paint();
+            bgPaint.setColor(Color.DKGRAY);
+            Paint timeBarPaint = new Paint();
+            timeBarPaint.setColor(Color.RED);
+            canvas.drawRect(0, 0, canvasWidth, barHeight, bgPaint);
+            canvas.drawRect(0, 0, canvasWidth * timeRatio, barHeight, timeBarPaint);
         }
     }
 
     public void movePlayerLeft() {
         if (gameEngine != null) {
             gameEngine.movePlayerLeft();
+            gam.playerMovement(getContext());
         }
     }
 
     public void movePlayerUp() {
         if (gameEngine != null) {
             gameEngine.movePlayerUp();
+            gam.playerMovement(getContext());
         }
     }
 
     public void movePlayerRight() {
         if (gameEngine != null) {
             gameEngine.movePlayerRight();
+            gam.playerMovement(getContext());
+        }
+    }
+
+    public void movePlayerDown() {
+        if (gameEngine != null) {
+            gameEngine.movePlayerDown();
+            gam.playerMovement(getContext());
         }
     }
 }

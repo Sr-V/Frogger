@@ -1,5 +1,6 @@
 package edu.pmdm.frogger.activities;
 
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
@@ -8,6 +9,7 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 
 import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -56,7 +58,7 @@ public class LevelSelectionActivity extends AppCompatActivity {
         // Referencia al contenedor de niveles
         linearLayoutLevels = findViewById(R.id.linearLayoutLevels);
 
-        // 1) Obtener el nivel actual del usuario
+        // 1) Obtener el nivel actual del usuario y luego cargar la lista de niveles
         getUserCurrentLevel();
 
         Button btnBackToMain = findViewById(R.id.btnBackToMain);
@@ -66,7 +68,6 @@ public class LevelSelectionActivity extends AppCompatActivity {
             startActivity(intent);
             finish();
         });
-
     }
 
     /**
@@ -120,6 +121,7 @@ public class LevelSelectionActivity extends AppCompatActivity {
     /**
      * Crea un botón para el nivel dado y lo añade al LinearLayout.
      * Marca como bloqueado si el levelId > userCurrentLevel.
+     * Si el nombre del nivel es "Proximamente", se mostrará un AlertDialog informando que aún no se ha desarrollado.
      */
     private void createLevelButton(String levelId, String levelName) {
         Button levelButton = new Button(this);
@@ -131,26 +133,48 @@ public class LevelSelectionActivity extends AppCompatActivity {
         levelButton.setTextSize(12);
         levelButton.setAllCaps(false);
 
-        // Deshabilitamos si está bloqueado
         int levelNumber = Integer.parseInt(levelId);
-        if (levelNumber > userCurrentLevel) {
-            // Bloqueado
-            levelButton.setEnabled(false);
-            levelButton.setAlpha(0.5f); // Un poco traslúcido
-        } else {
-            // Desbloqueado -> Añadimos clickListener para ir al juego
+
+        // Si el nombre es "Proximamente", se considerará que aún no está desarrollado
+        if (levelName != null && levelName.equalsIgnoreCase("Proximamente")) {
+            levelButton.setOnClickListener(v -> {
+                new AlertDialog.Builder(this)
+                        .setTitle("Nivel no disponible")
+                        .setMessage("Este nivel aún no se ha desarrollado.")
+                        .setPositiveButton("Aceptar", null)
+                        .setCancelable(false)
+                        .show();
+            });
+            // Aunque esté desbloqueado, no se lanza GameActivity
             levelButton.setEnabled(true);
             levelButton.setAlpha(1.0f);
-
-            levelButton.setOnClickListener(v -> {
-                // Enviamos el nivel de este botón (levelNumber) a GameActivity
-                Intent intent = new Intent(LevelSelectionActivity.this, GameActivity.class);
-                intent.putExtra("level", levelNumber);
-                startActivity(intent);
-            });
+        } else {
+            // Si el nivel está bloqueado (número mayor que userCurrentLevel)
+            if (levelNumber > userCurrentLevel) {
+                levelButton.setEnabled(false);
+                levelButton.setAlpha(0.5f);
+            } else {
+                // Desbloqueado: agregar clickListener para ir al juego
+                levelButton.setEnabled(true);
+                levelButton.setAlpha(1.0f);
+                levelButton.setOnClickListener(v -> {
+                    // Enviamos el nivel de este botón (levelNumber) a GameActivity
+                    Intent intent = new Intent(LevelSelectionActivity.this, GameActivity.class);
+                    intent.putExtra("level", levelNumber);
+                    // También se pasa el userCurrentLevel para que GameActivity pueda compararlos
+                    intent.putExtra("userCurrentLevel", userCurrentLevel);
+                    startActivity(intent);
+                });
+            }
         }
 
         // Añadir el botón al contenedor
         linearLayoutLevels.addView(levelButton);
+    }
+
+    @Override
+    public void onBackPressed() {
+        super.onBackPressed();
+        finish();
     }
 }

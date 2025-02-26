@@ -8,6 +8,7 @@ import android.graphics.RectF;
 import java.util.ArrayList;
 import java.util.List;
 import edu.pmdm.frogger.R;
+import edu.pmdm.frogger.utils.GameAudioManager;
 
 public class Path {
 
@@ -23,6 +24,8 @@ public class Path {
     private int columns = 5;
     private int cellWidth, cellHeight;
     private PathConfig config;
+    private GameAudioManager gam = GameAudioManager.getInstance();
+    private Context context;
 
     /**
      * Constructor.
@@ -32,6 +35,7 @@ public class Path {
      * @param config Configuración del camino para el nivel.
      */
     public Path(Context context, int screenWidth, int mapHeight, PathConfig config) {
+        this.context = context;
         this.config = config;
         this.pathLines = generateLines(0.39f, 0.08f, 5);
         cellWidth = screenWidth / columns;
@@ -152,6 +156,7 @@ public class Path {
             RectF keyBox = key.getBoundingBox();
             if (RectF.intersects(frogBox, keyBox)) {
                 keyCollected = true;
+                gam.keyCollected(context);
                 key = null;
             }
         }
@@ -258,8 +263,8 @@ public class Path {
                 // Nivel sin llave.
                 int[][] basic1 = {
                         {1, 1, 1, 1, 1},
-                        {1, 1, 1, 1, 1},
-                        {0, 1, 1, 1, 0},
+                        {1, 1, 0, 1, 1},
+                        {0, 1, 0, 1, 0},
                         {0, 1, 1, 1, 0},
                         {0, 0, 1, 0, 0}
                 };
@@ -281,15 +286,15 @@ public class Path {
                 // Patrón básico para las primeras 3 filas; en la celda (fila 2, columna 2) se dibujará la llave encima de la pieza.
                 int[][] basic3 = {
                         {1, 1, 1, 1, 1},
-                        {1, 0, 1, 0, 1},
-                        {1, 1, 0, 1, 1}
+                        {1, 0, 1, 0, 1}
                 };
                 int[][] additional3 = {
+                        {1, 1, 0, 1, 1},
                         {0, 1, 1, 1, 0},
                         {0, 0, 1, 0, 0}
                 };
                 // La llave se coloca en la fila 2, columna 2 y las piezas adicionales se dibujan a partir de la fila 3.
-                return new PathConfig(basic3, true, 2, 0, additional3, 3, R.drawable.space_path, R.drawable.space_key);
+                return new PathConfig(basic3, true, 1, 2, additional3, 2, R.drawable.space_path, R.drawable.space_key);
             default:
                 // Configuración por defecto sin llave.
                 int[][] basicDefault = {
