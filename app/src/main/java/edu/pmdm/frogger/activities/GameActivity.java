@@ -2,6 +2,7 @@ package edu.pmdm.frogger.activities;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.ImageButton;
 import androidx.appcompat.app.AlertDialog;
@@ -9,12 +10,15 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.WindowCompat;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Logger;
+
 import edu.pmdm.frogger.R;
 import edu.pmdm.frogger.firebase.FirebaseAuthManager;
 import edu.pmdm.frogger.firebase.FirestoreManager;
 import edu.pmdm.frogger.game.GameEngine;
 import edu.pmdm.frogger.game.GameEventsListener;
 import edu.pmdm.frogger.game.Juego;
+import edu.pmdm.frogger.utils.GameAudioManager;
 
 public class GameActivity extends AppCompatActivity implements GameEventsListener {
 
@@ -23,6 +27,8 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
     private ImageButton btnLeft, btnUp, btnRight, btnDown;
     private int level;            // Nivel que se está jugando
     private int userCurrentLevel; // Nivel actual del usuario en Firebase
+    private GameAudioManager gam = GameAudioManager.getInstance();
+    private boolean paused = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,6 +107,19 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setCancelable(false);
         String msg = "¡Has ganado!";
+
+        if(level == 1){
+            gam.stopLevelOneTheme();
+            gam.stopIdleSound();
+        }
+        if(level == 2){
+            gam.stopLevelTwoTheme();
+            gam.stopIdleSound();
+        }
+        if(level == 3){
+            gam.stopLevelThreeTheme();
+            gam.stopIdleSound();
+        }
         if (levelIncremented) {
             msg += "\n¡Se ha desbloqueado el siguiente nivel!";
         }
@@ -116,6 +135,16 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
 
     private void showDefeatAlert() {
         String message;
+        gam.stopIdleSound();
+        if(level == 1){
+            gam.stopLevelOneTheme();
+        }
+        if(level == 2){
+            gam.stopLevelTwoTheme();
+        }
+        if(level == 3){
+            gam.stopLevelThreeTheme();
+        }
         if (gameEngine.isLostByTime()) {
             message = "¡Tiempo agotado!\nNo lograste completar el nivel a tiempo.";
         } else {
@@ -138,5 +167,59 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
         btnUp.setEnabled(enabled);
         btnRight.setEnabled(enabled);
         btnDown.setEnabled(enabled);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        gam.stopIdleSound();
+        if(level == 1){
+            gam.stopLevelOneTheme();
+        }
+        if(level == 2){
+            gam.stopLevelTwoTheme();
+        }
+        if(level == 3){
+            gam.stopLevelThreeTheme();
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        gam.stopIdleSound();
+        if(level == 1){
+            gam.stopLevelOneTheme();
+        }
+        if(level == 2){
+            gam.stopLevelTwoTheme();
+        }
+        if(level == 3){
+            gam.stopLevelThreeTheme();
+        }
+        paused = true;
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if(paused) {
+            if (level == 1) {
+                gam.levelOneTheme(this);
+                gam.idleCroak(this);
+                gam.carHonks(this);
+            }
+            if (level == 2) {
+                gam.levelTwoTheme(this);
+                gam.idleCroak(this);
+                gam.carHonks(this);
+            }
+            if (level == 3) {
+                gam.levelThreeTheme(this);
+                gam.idleCroak(this);
+                gam.carHonks(this);
+            }
+        }
+        paused = false;
     }
 }

@@ -171,4 +171,10 @@ public class LevelSelectionActivity extends AppCompatActivity {
         // Añadir el botón al contenedor
         linearLayoutLevels.addView(levelButton);
     }
+
+    @Override
+    public void onBackPressed() {
+        super.onBackPressed();
+        finish();
+    }
 }
