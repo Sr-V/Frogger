@@ -8,6 +8,7 @@ import android.graphics.RectF;
 import java.util.ArrayList;
 import java.util.List;
 import edu.pmdm.frogger.R;
+import edu.pmdm.frogger.utils.GameAudioManager;
 
 public class Path {
 
@@ -23,6 +24,8 @@ public class Path {
     private int columns = 5;
     private int cellWidth, cellHeight;
     private PathConfig config;
+    private GameAudioManager gam = GameAudioManager.getInstance();
+    private Context context;
 
     /**
      * Constructor.
@@ -32,6 +35,7 @@ public class Path {
      * @param config Configuración del camino para el nivel.
      */
     public Path(Context context, int screenWidth, int mapHeight, PathConfig config) {
+        this.context = context;
         this.config = config;
         this.pathLines = generateLines(0.39f, 0.08f, 5);
         cellWidth = screenWidth / columns;
@@ -152,6 +156,7 @@ public class Path {
             RectF keyBox = key.getBoundingBox();
             if (RectF.intersects(frogBox, keyBox)) {
                 keyCollected = true;
+                gam.keyCollected(context);
                 key = null;
             }
         }
