@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import edu.pmdm.frogger.R;
+import edu.pmdm.frogger.utils.GameAudioManager;
 
 public class GameEngine {
 
@@ -16,6 +17,8 @@ public class GameEngine {
     private List<Obstacle> obstacles;
     private CollisionManager collisionManager;
     private Path path; // Camino seguro
+    private GameAudioManager gam;
+    private Context context;
 
     // Líneas para la rana
     private final float[] frogLines = generateLines(0.92f, 0.02f, 13);
@@ -57,6 +60,8 @@ public class GameEngine {
         this.level = level;
         this.userCurrentLevel = userCurrentLevel;
         this.listener = listener;
+        this.gam = GameAudioManager.getInstance();
+        this.context = context;
     }
 
     private float[] generateLines(float start, float end, int count) {
@@ -196,6 +201,7 @@ public class GameEngine {
         if (!player.isDead()) {
             for (Obstacle obstacle : obstacles) {
                 if (collisionManager.checkCollision(player, obstacle)) {
+                    gam.playerDeath(context);
                     lives--;
                     if (lives > 0) {
                         if (listener != null) listener.onButtonsBlocked(true);
@@ -221,6 +227,15 @@ public class GameEngine {
             float frogFootY = player.getBoundingBox().bottom;
             if (frogFootY >= pathTop && frogFootY <= pathBottom && !path.isFrogSafe(player)) {
                 lives--;
+                if(level == 1){
+                    gam.playerDrowned(context);
+                }
+                if(level == 2){
+                    gam.playerSand(context);
+                }
+                if(level == 3){
+                    gam.playerFell(context);
+                }
                 if (lives > 0) {
                     if (listener != null) listener.onButtonsBlocked(true);
                     player.playDeathAnimation();
