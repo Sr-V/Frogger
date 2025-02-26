@@ -6,6 +6,7 @@ import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QuerySnapshot;
+import com.google.firebase.firestore.SetOptions;
 
 import java.util.Map;
 
@@ -151,6 +152,7 @@ public class FirestoreManager {
                 .document(uid)
                 .collection("maps")
                 .document(levelId);
-        return mapRef.set(levelData);
+        // Usamos merge para que solo se actualicen los campos indicados y se conserven los demás (como "name")
+        return mapRef.set(levelData, SetOptions.merge());
     }
 }
