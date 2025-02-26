@@ -48,6 +48,9 @@ public class GameEngine {
     private long levelStartTime;   // tiempo de inicio del nivel
     private boolean lostByTime = false; // Indica si se perdió por agotar el tiempo
 
+    // Variable para congelar el contador de tiempo
+    private Long finalElapsedTime = null;
+
     private Bitmap originalLifeBitmap;
     private Bitmap lifeBitmap;
     private int blinkCounter = 0;
@@ -115,6 +118,7 @@ public class GameEngine {
         gameOver = false;
         lives = 3;
         lostByTime = false;
+        finalElapsedTime = null;
 
         // Establecer el tiempo según el nivel:
         // Nivel 1: 60 segundos, Nivel 2: 45 segundos, Nivel 3: 30 segundos.
@@ -186,6 +190,7 @@ public class GameEngine {
         path = new Path(player.context, screenWidth, mapHeight, config);
         // Reinicia el tiempo del nivel
         levelStartTime = System.currentTimeMillis();
+        finalElapsedTime = null;
         lostByTime = false;
         if (listener != null) {
             listener.onButtonsBlocked(false);
@@ -195,11 +200,12 @@ public class GameEngine {
     public void update() {
         if (gameWon || gameOver) return;
 
-        // Actualizar el tiempo y comprobar si se ha agotado
         long elapsed = System.currentTimeMillis() - levelStartTime;
         if (elapsed >= levelTimeLimit) {
             lostByTime = true;
             gameOver = true;
+            // Congelar el contador de tiempo al alcanzar el límite
+            finalElapsedTime = levelTimeLimit;
             if (listener != null) {
                 listener.onGameLost();
             }
@@ -222,6 +228,9 @@ public class GameEngine {
                         player.playDeathAnimation();
                     } else {
                         gameOver = true;
+                        if (finalElapsedTime == null) {
+                            finalElapsedTime = System.currentTimeMillis() - levelStartTime;
+                        }
                         if (listener != null) listener.onGameLost();
                     }
                     break;
@@ -255,6 +264,9 @@ public class GameEngine {
                     player.playDeathAnimation();
                 } else {
                     gameOver = true;
+                    if (finalElapsedTime == null) {
+                        finalElapsedTime = System.currentTimeMillis() - levelStartTime;
+                    }
                     if (listener != null) listener.onGameLost();
                 }
             }
@@ -274,7 +286,6 @@ public class GameEngine {
         }
 
         drawLives(canvas);
-
     }
 
     private void drawLives(Canvas canvas){
@@ -284,10 +295,10 @@ public class GameEngine {
         int startY = 20;
 
         for(int i = 0; i < lives; i++){
-            int lifeX = startX + i *(lifeSize + lifeSpacing);
+            int lifeX = startX + i * (lifeSize + lifeSpacing);
             int lifeY = startY;
 
-            if(i == lives -1 && (blinkCounter / (BLINK_DURATION / 2)) % 2 == 0){
+            if(i == lives - 1 && (blinkCounter / (BLINK_DURATION / 2)) % 2 == 0){
                 continue;
             }
             canvas.drawBitmap(lifeBitmap, lifeX, lifeY, null);
@@ -297,7 +308,6 @@ public class GameEngine {
         if (blinkCounter >= BLINK_DURATION) {
             blinkCounter = 0;
         }
-
     }
 
     public void movePlayerUp() {
@@ -311,6 +321,8 @@ public class GameEngine {
             player.moveUpSmall();
             if (frogLineIndex == frogLines.length - 1) {
                 gameWon = true;
+                // Congelar el contador de tiempo en el instante de la victoria
+                finalElapsedTime = System.currentTimeMillis() - levelStartTime;
                 Log.d(TAG, "¡Victoria! La rana ha llegado arriba.");
                 boolean shouldIncrementLevel = (level == userCurrentLevel);
                 if (listener != null) listener.onGameWon(shouldIncrementLevel);
@@ -358,9 +370,28 @@ public class GameEngine {
      * Devuelve la proporción de tiempo restante (entre 0 y 1) para usar en la barra.
      */
     public float getTimeRatio() {
-        long elapsed = System.currentTimeMillis() - levelStartTime;
+        long elapsed = getFinalElapsedTime();
         long remaining = Math.max(levelTimeLimit - elapsed, 0);
         return remaining / (float) levelTimeLimit;
+    }
+
+    /**
+     * Retorna el tiempo final transcurrido (congelado) o el tiempo actual si aún no se ha congelado.
+     */
+    public long getFinalElapsedTime() {
+        return finalElapsedTime != null ? finalElapsedTime : System.currentTimeMillis() - levelStartTime;
+    }
+
+    public long getLevelTimeLimit() {
+        return levelTimeLimit;
+    }
+
+    public boolean isGameWon() {
+        return gameWon;
+    }
+
+    public boolean isGameOver() {
+        return gameOver;
     }
 
     // Getter para saber si se perdió por tiempo

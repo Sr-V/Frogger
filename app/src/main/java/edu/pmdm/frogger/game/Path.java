@@ -40,8 +40,8 @@ public class Path {
         this.pathLines = generateLines(0.39f, 0.08f, 5);
         cellWidth = screenWidth / columns;
         cellHeight = (int)(mapHeight * 0.10f);
-        int pieceWidth = (int)(cellWidth * 0.7f);
-        int pieceHeight = (int)(cellHeight * 0.7f);
+        int pieceWidth = (int)(cellWidth * 0.75f);
+        int pieceHeight = (int)(cellHeight * 0.75f);
 
         basicPieces = new ArrayList<>();
         if (!config.hasKey) {

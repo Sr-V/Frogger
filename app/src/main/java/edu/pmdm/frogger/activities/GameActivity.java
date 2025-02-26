@@ -2,16 +2,16 @@ package edu.pmdm.frogger.activities;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.widget.ImageButton;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.WindowCompat;
+
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
+
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Logger;
-
 import edu.pmdm.frogger.R;
 import edu.pmdm.frogger.firebase.FirebaseAuthManager;
 import edu.pmdm.frogger.firebase.FirestoreManager;
@@ -72,94 +72,83 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
     @Override
     public void onGameWon(boolean shouldIncrementLevel) {
         setButtonsEnabled(false);
+        // Obtener el tiempo final transcurrido y el límite de tiempo
+        long finalElapsed = gameEngine.getFinalElapsedTime();
+        long timeLimit = gameEngine.getLevelTimeLimit();
+        float porcentaje = (float) finalElapsed / timeLimit;
+
+        // Determinar la cantidad de estrellas en función del tiempo
+        int estrellas;
+        if (porcentaje <= 0.20f) {
+            estrellas = 3;
+        } else if (porcentaje <= 0.50f) {
+            estrellas = 2;
+        } else {
+            estrellas = 1;
+        }
+
+        // **** AÑADIR ESTA LÍNEA ****
+        // Informamos al SurfaceView (Juego) del número de estrellas
+        juegoView.setVictoryStars(estrellas);
+
+        // Obtenemos el UID del usuario logueado
+        String uid = FirebaseAuthManager.getInstance(this).getCurrentUser().getUid();
+
+        // 1) Comprobar y actualizar las estrellas en la subcolección "maps"
+        FirestoreManager.getInstance()
+                .createOrUpdateUserMap(uid, String.valueOf(level), new HashMap<>())
+                .addOnSuccessListener(aVoid -> {
+                    FirebaseFirestore.getInstance()
+                            .collection("users")
+                            .document(uid)
+                            .collection("maps")
+                            .document(String.valueOf(level))
+                            .get()
+                            .addOnSuccessListener(documentSnapshot -> {
+                                int firebaseStars = 0;
+                                if (documentSnapshot.exists() && documentSnapshot.contains("stars")) {
+                                    firebaseStars = documentSnapshot.getLong("stars").intValue();
+                                }
+                                // 2) Si se han obtenido más estrellas, se actualiza el documento
+                                if (estrellas > firebaseStars) {
+                                    Map<String, Object> levelData = new HashMap<>();
+                                    levelData.put("stars", estrellas);
+                                    FirestoreManager.getInstance()
+                                            .createOrUpdateUserMap(uid, String.valueOf(level), levelData)
+                                            .addOnSuccessListener(unused -> recalcTotalStars(uid))
+                                            .addOnFailureListener(e -> recalcTotalStars(uid));
+                                } else {
+                                    recalcTotalStars(uid);
+                                }
+                            })
+                            .addOnFailureListener(e -> recalcTotalStars(uid));
+                });
+
+        // 3) Si el usuario juega en su currentLevel, se incrementa el nivel en Firebase
         if (userCurrentLevel == level) {
-            String uid = FirebaseAuthManager.getInstance(this).getCurrentUser().getUid();
             int newLevel = userCurrentLevel + 1;
             Map<String, Object> updates = new HashMap<>();
             updates.put("currentLevel", newLevel);
             FirestoreManager.getInstance().updateUserFields(uid, updates)
-                    .addOnSuccessListener(aVoid -> {
-                        userCurrentLevel = newLevel;
-                        showVictoryAlert(true);
-                    })
+                    .addOnSuccessListener(aVoid -> userCurrentLevel = newLevel)
                     .addOnFailureListener(e -> {
-                        showVictoryAlert(false);
+                        // En caso de error, se continúa mostrando la victoria a través de Juego.draw()
                     });
-        } else {
-            showVictoryAlert(false);
         }
+        // La ventana de victoria se dibuja en Juego.draw()
     }
 
     @Override
     public void onGameLost() {
         runOnUiThread(() -> {
             setButtonsEnabled(false);
-            showDefeatAlert();
+            // La ventana de derrota se dibuja en Juego.draw()
         });
     }
 
     @Override
     public void onButtonsBlocked(boolean blocked) {
         runOnUiThread(() -> setButtonsEnabled(!blocked));
-    }
-
-    private void showVictoryAlert(boolean levelIncremented) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setCancelable(false);
-        String msg = "¡Has ganado!";
-
-        if(level == 1){
-            gam.stopLevelOneTheme();
-            gam.stopIdleSound();
-        }
-        if(level == 2){
-            gam.stopLevelTwoTheme();
-            gam.stopIdleSound();
-        }
-        if(level == 3){
-            gam.stopLevelThreeTheme();
-            gam.stopIdleSound();
-        }
-        if (levelIncremented) {
-            msg += "\n¡Se ha desbloqueado el siguiente nivel!";
-        }
-        builder.setTitle("Victoria")
-                .setMessage(msg)
-                .setPositiveButton("Reintentar", (dialog, which) -> recreate())
-                .setNegativeButton("Menú Principal", (dialog, which) -> {
-                    startActivity(new Intent(this, MainActivity.class));
-                    finish();
-                })
-                .show();
-    }
-
-    private void showDefeatAlert() {
-        String message;
-        gam.stopIdleSound();
-        if(level == 1){
-            gam.stopLevelOneTheme();
-        }
-        if(level == 2){
-            gam.stopLevelTwoTheme();
-        }
-        if(level == 3){
-            gam.stopLevelThreeTheme();
-        }
-        if (gameEngine.isLostByTime()) {
-            message = "¡Tiempo agotado!\nNo lograste completar el nivel a tiempo.";
-        } else {
-            message = "Te has quedado sin vidas. ¿Deseas reintentar o volver al menú?";
-        }
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setCancelable(false);
-        builder.setTitle("Derrota")
-                .setMessage(message)
-                .setPositiveButton("Reintentar", (dialog, which) -> recreate())
-                .setNegativeButton("Menú Principal", (dialog, which) -> {
-                    startActivity(new Intent(this, MainActivity.class));
-                    finish();
-                })
-                .show();
     }
 
     private void setButtonsEnabled(boolean enabled) {
@@ -169,17 +158,52 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
         btnDown.setEnabled(enabled);
     }
 
+    /**
+     * Recalcula el total de estrellas de TODOS los mapas del usuario y actualiza el campo totalStars.
+     */
+    private void recalcTotalStars(String uid) {
+        FirebaseFirestore.getInstance()
+                .collection("users")
+                .document(uid)
+                .collection("maps")
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    int totalStars = 0;
+                    if (!querySnapshot.isEmpty()) {
+                        // Sumamos las estrellas de cada nivel
+                        for (DocumentSnapshot doc : querySnapshot.getDocuments()) {
+                            if (doc.contains("stars")) {
+                                totalStars += doc.getLong("stars").intValue();
+                            }
+                        }
+                    }
+                    // Actualizar el campo totalStars en el documento principal del usuario
+                    Map<String, Object> updates = new HashMap<>();
+                    updates.put("totalStars", totalStars);
+                    FirestoreManager.getInstance().updateUserFields(uid, updates)
+                            .addOnSuccessListener(aVoid -> {
+                                // totalStars actualizado
+                            })
+                            .addOnFailureListener(e -> {
+                                // Error al actualizar totalStars
+                            });
+                })
+                .addOnFailureListener(e -> {
+                    // Error al leer la subcolección "maps"
+                });
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
         gam.stopIdleSound();
-        if(level == 1){
+        if (level == 1) {
             gam.stopLevelOneTheme();
         }
-        if(level == 2){
+        if (level == 2) {
             gam.stopLevelTwoTheme();
         }
-        if(level == 3){
+        if (level == 3) {
             gam.stopLevelThreeTheme();
         }
     }
@@ -188,13 +212,13 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
     protected void onPause() {
         super.onPause();
         gam.stopIdleSound();
-        if(level == 1){
+        if (level == 1) {
             gam.stopLevelOneTheme();
         }
-        if(level == 2){
+        if (level == 2) {
             gam.stopLevelTwoTheme();
         }
-        if(level == 3){
+        if (level == 3) {
             gam.stopLevelThreeTheme();
         }
         paused = true;
@@ -203,7 +227,7 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
     @Override
     protected void onResume() {
         super.onResume();
-        if(paused) {
+        if (paused) {
             if (level == 1) {
                 gam.levelOneTheme(this);
                 gam.idleCroak(this);
