@@ -3,15 +3,30 @@ package edu.pmdm.frogger.utils;
 import android.content.Context;
 import android.media.MediaPlayer;
 import android.os.Handler;
+import android.util.Log;
 
 import edu.pmdm.frogger.R;
 
 public class GameAudioManager {
 
+    private static GameAudioManager instance;
     MediaPlayer mainThemeMp;
     MediaPlayer levelOneThemeMp;
     MediaPlayer levelTwoThemeMp;
     MediaPlayer levelThreeThemeMp;
+    MediaPlayer idleCroakMp;
+    MediaPlayer carHonksMp;
+
+    private GameAudioManager() {}
+
+    // Método estático para obtener la instancia única
+    public static GameAudioManager getInstance() {
+        if (instance == null) {
+            instance = new GameAudioManager();
+        }
+        return instance;
+    }
+
     public void playerMovement(Context c){
 
         MediaPlayer mp = MediaPlayer.create(c, R.raw.frog_jump);
@@ -35,7 +50,6 @@ public class GameAudioManager {
     }
 
     public void playerDeath(Context c){
-
         MediaPlayer mp = MediaPlayer.create(c, R.raw.frog_death);
         mp.start();
         mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
@@ -58,14 +72,14 @@ public class GameAudioManager {
     }
 
     public void idleCroak(Context c){
-        MediaPlayer mp = MediaPlayer.create(c, R.raw.frog_croak);
+        idleCroakMp = MediaPlayer.create(c, R.raw.frog_croak);
         Runnable playSound = new Runnable() {
             @Override
             public void run() {
-                if (mp != null) {
-                    mp.setVolume(0.5f, 0.5f);
-                    mp.start();
-                    mp.setOnCompletionListener(mediaPlayer -> {
+                if (idleCroakMp != null) {
+                    idleCroakMp.setVolume(0.5f, 0.5f);
+                    idleCroakMp.start();
+                    idleCroakMp.setOnCompletionListener(mediaPlayer -> {
                         new Handler().postDelayed(this, 9000);
                     });
                 }
@@ -96,11 +110,21 @@ public class GameAudioManager {
         levelOneThemeMp.setLooping(true);
     }
 
-    public void stopLevelOneTheme(){
+    public void stopLevelOneTheme() {
         if (levelOneThemeMp != null) {
-            levelOneThemeMp.stop();
-            levelOneThemeMp.release();
-            levelOneThemeMp = null;
+            try {
+                if (levelOneThemeMp.isPlaying()) {
+                    levelOneThemeMp.stop();
+                    Log.d("Audio", "Level One Theme stopped");
+                }
+                levelOneThemeMp.release();
+                levelOneThemeMp = null;
+                Log.d("Audio", "Level One Theme released");
+            } catch (IllegalStateException e) {
+                Log.e("Audio", "Error stopping Level One Theme", e);
+            }
+        } else {
+            Log.d("Audio", "Level One Theme is null");
         }
     }
 
@@ -133,14 +157,14 @@ public class GameAudioManager {
     }
 
     public void carHonks(Context c){
-        MediaPlayer mp = MediaPlayer.create(c, R.raw.car_horn_2);
+        carHonksMp = MediaPlayer.create(c, R.raw.car_horn_2);
 
         Runnable playSound = new Runnable() {
             @Override
             public void run() {
-                if (mp != null) {
-                    mp.start();
-                    mp.setOnCompletionListener(mediaPlayer -> {
+                if (carHonksMp != null) {
+                    carHonksMp.start();
+                    carHonksMp.setOnCompletionListener(mediaPlayer -> {
                         new Handler().postDelayed(this, 7000);
                     });
                 }
@@ -151,6 +175,64 @@ public class GameAudioManager {
     }
 
 
+    public void stopIdleSound(){
+        if (idleCroakMp != null) {
+            idleCroakMp.stop();
+            idleCroakMp.release();
+            idleCroakMp = null;
+        }
 
+        if (carHonksMp != null) {
+            carHonksMp.stop();
+            carHonksMp.release();
+            carHonksMp = null;
+        }
+
+    }
+
+    public void keyCollected(Context c){
+        MediaPlayer mp = MediaPlayer.create(c, R.raw.key_found);
+        mp.start();
+        mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+            @Override
+            public void onCompletion(MediaPlayer mediaPlayer) {
+                mp.release();
+            }
+        });
+
+    }
+
+    public void playerDrowned(Context c){
+        MediaPlayer mp = MediaPlayer.create(c, R.raw.drowning);
+        mp.start();
+        mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+            @Override
+            public void onCompletion(MediaPlayer mediaPlayer) {
+                mp.release();
+            }
+        });
+    }
+
+    public void playerSand(Context c){
+        MediaPlayer mp = MediaPlayer.create(c, R.raw.sand_fall);
+        mp.start();
+        mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+            @Override
+            public void onCompletion(MediaPlayer mediaPlayer) {
+                mp.release();
+            }
+        });
+    }
+
+    public void playerFell(Context c){
+        MediaPlayer mp = MediaPlayer.create(c, R.raw.fall);
+        mp.start();
+        mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+            @Override
+            public void onCompletion(MediaPlayer mediaPlayer) {
+                mp.release();
+            }
+        });
+    }
 
 }
