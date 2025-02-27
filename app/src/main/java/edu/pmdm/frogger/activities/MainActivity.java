@@ -6,16 +6,20 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
-import androidx.appcompat.app.AlertDialog;
-import androidx.appcompat.app.AppCompatActivity;
+
 import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+
 import com.google.firebase.firestore.DocumentSnapshot;
+
 import java.util.HashMap;
 import java.util.Map;
+
 import edu.pmdm.frogger.R;
+import edu.pmdm.frogger.utils.AlertsOverlayView;
 import edu.pmdm.frogger.firebase.FirebaseAuthManager;
 import edu.pmdm.frogger.firebase.FirestoreManager;
 import edu.pmdm.frogger.utils.GameAudioManager;
@@ -30,6 +34,9 @@ public class MainActivity extends AppCompatActivity {
     private int currentScore = 0; // ahora representa totalStars
     private GameAudioManager gam = GameAudioManager.getInstance();
 
+    // Nuevo: referencia al OverlayView para ventanas retro
+    private AlertsOverlayView overlayView;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -43,7 +50,6 @@ public class MainActivity extends AppCompatActivity {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
-
 
         // Inicializa los gestores de autenticación y Firestore
         authManager = FirebaseAuthManager.getInstance(this);
@@ -60,6 +66,17 @@ public class MainActivity extends AppCompatActivity {
         // Se muestra el ProgressBar mientras se cargan los datos
         findViewById(R.id.progressBar).setVisibility(View.VISIBLE);
 
+        // OverlayView para ventanas retro
+        overlayView = new AlertsOverlayView(this);
+        // Añadimos la vista sobre la Activity
+        addContentView(overlayView,
+                new android.view.ViewGroup.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                )
+        );
+        overlayView.setVisibility(View.GONE); // Oculta por defecto
+
         // Obtiene o crea los datos del usuario en Firestore
         getUserData();
 
@@ -70,26 +87,11 @@ public class MainActivity extends AppCompatActivity {
         });
 
         // Listener para el botón PLAY GAME:
-        // Si currentLevel es 4, se muestra un AlertDialog informando que no existen nuevos niveles,
-        // ofreciendo jugar el nivel 3 o ir a LevelSelectionActivity.
+        // Si currentLevel es 4, mostramos la ventana retro "Niveles no disponibles"
         findViewById(R.id.playGame).setOnClickListener(v -> {
             if (currentLevel == 4) {
-                new AlertDialog.Builder(MainActivity.this)
-                        .setTitle("Niveles no disponibles")
-                        .setMessage("No existen niveles nuevos. El último nivel disponible es el 3.\n\n¿Deseas ir a la selección de niveles o jugar el último nivel disponible?")
-                        .setPositiveButton("Jugar nivel 3", (dialog, which) -> {
-                            Intent intent = new Intent(MainActivity.this, GameActivity.class);
-                            intent.putExtra("level", 3);
-                            // Se sigue pasando currentLevel para comparación en GameActivity si fuera necesario
-                            intent.putExtra("userCurrentLevel", currentLevel);
-                            startActivity(intent);
-                        })
-                        .setNegativeButton("Seleccionar nivel", (dialog, which) -> {
-                            Intent intent = new Intent(MainActivity.this, LevelSelectionActivity.class);
-                            startActivity(intent);
-                        })
-                        .setCancelable(false)
-                        .show();
+                // Muestra la ventana retro en vez de AlertDialog
+                overlayView.showNoNewLevelsWindow();
             } else {
                 gam.stopMainThemeSong();
                 Intent intent = new Intent(MainActivity.this, GameActivity.class);
@@ -108,13 +110,6 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * Obtiene el documento del usuario en Firestore. Si no existe, lo crea con datos por defecto.
-     * Los campos iniciales son:
-     * - currentLevel por defecto 1
-     * - displayName del usuario logueado
-     * - email del usuario logueado
-     * - totalStars por defecto 0
-     * Además, se crea una subcolección "maps" con los niveles obtenidos de la colección "levels" de Firebase,
-     * asignando stars = 0 a cada uno.
      */
     private void getUserData() {
         String uid = authManager.getCurrentUser().getUid();
@@ -141,7 +136,6 @@ public class MainActivity extends AppCompatActivity {
                             .addOnCompleteListener(createTask -> {
                                 if (createTask.isSuccessful()) {
                                     Log.d(TAG, "Usuario creado exitosamente en Firestore");
-                                    // Crea la subcolección "maps" con la información de cada nivel
                                     crearSubcoleccionMaps(uid);
                                     updateUIWithUserData(authManager.getCurrentUser().getDisplayName(), 1, 0);
                                 } else {
@@ -156,10 +150,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Crea la subcolección "maps" para el usuario, basándose en los niveles obtenidos de la colección "levels"
-     * y asigna stars = 0 para cada uno.
-     *
-     * @param uid Identificador único del usuario.
+     * Crea la subcolección "maps" para el usuario, basándose en los niveles de la colección "levels".
      */
     private void crearSubcoleccionMaps(String uid) {
         firestoreManager.getAllLevels(task -> {
@@ -167,10 +158,8 @@ public class MainActivity extends AppCompatActivity {
                 task.getResult().getDocuments().forEach(document -> {
                     String levelId = document.getId();
                     Map<String, Object> levelData = new HashMap<>();
-                    // Se pueden incluir otros campos del nivel, por ejemplo: name, theme, etc.
                     levelData.put("name", document.getString("name"));
-                    levelData.put("stars", 0); // Estrellas por defecto
-                    // Guarda el documento en la subcolección "maps" del usuario
+                    levelData.put("stars", 0);
                     firestoreManager.createOrUpdateUserMap(uid, levelId, levelData);
                 });
             } else {
@@ -179,13 +168,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    /**
-     * Actualiza la UI con la información del usuario y muestra el contenido principal.
-     *
-     * @param displayName Nombre del usuario.
-     * @param level       Nivel actual.
-     * @param score       Total de estrellas.
-     */
     @SuppressLint("SetTextI18n")
     private void updateUIWithUserData(String displayName, int level, int score) {
         TextView tvUserName = findViewById(R.id.tvUserName);
@@ -207,9 +189,6 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.btnGoogleLogout).setVisibility(View.VISIBLE);
     }
 
-    /**
-     * Cierra la sesión del usuario y redirige a LoginActivity.
-     */
     private void signOut() {
         authManager.signOut(this, task -> {
             if (task.isSuccessful()) {
