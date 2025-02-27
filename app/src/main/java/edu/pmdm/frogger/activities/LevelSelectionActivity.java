@@ -1,6 +1,5 @@
 package edu.pmdm.frogger.activities;
 
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
@@ -9,18 +8,16 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 
 import androidx.activity.EdgeToEdge;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
-import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.Task;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
 
 import edu.pmdm.frogger.R;
+import edu.pmdm.frogger.utils.AlertsOverlayView; // <--- tu overlay
 import edu.pmdm.frogger.firebase.FirebaseAuthManager;
 import edu.pmdm.frogger.firebase.FirestoreManager;
 
@@ -37,6 +34,9 @@ public class LevelSelectionActivity extends AppCompatActivity {
 
     // Guardaremos el currentLevel del usuario (o el máximo desbloqueado)
     private int userCurrentLevel = 1;
+
+    // Nuevo: overlay para ventanas retro
+    private AlertsOverlayView overlayView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,6 +58,16 @@ public class LevelSelectionActivity extends AppCompatActivity {
         // Referencia al contenedor de niveles
         linearLayoutLevels = findViewById(R.id.linearLayoutLevels);
 
+        // Agregamos el overlay de alertas retro
+        overlayView = new AlertsOverlayView(this);
+        addContentView(overlayView,
+                new android.view.ViewGroup.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                )
+        );
+        overlayView.setVisibility(View.GONE);
+
         // 1) Obtener el nivel actual del usuario y luego cargar la lista de niveles
         getUserCurrentLevel();
 
@@ -70,10 +80,6 @@ public class LevelSelectionActivity extends AppCompatActivity {
         });
     }
 
-    /**
-     * Obtiene el documento del usuario para averiguar su currentLevel
-     * y luego carga la lista de niveles.
-     */
     private void getUserCurrentLevel() {
         String uid = authManager.getCurrentUser().getUid();
         firestoreManager.getUser(uid, task -> {
@@ -93,10 +99,6 @@ public class LevelSelectionActivity extends AppCompatActivity {
         });
     }
 
-    /**
-     * Obtiene todos los niveles de Firestore y crea botones
-     * bloqueados o desbloqueados según el currentLevel del usuario.
-     */
     private void loadAllLevels() {
         firestoreManager.getAllLevels(task -> {
             if (task.isSuccessful()) {
@@ -118,11 +120,6 @@ public class LevelSelectionActivity extends AppCompatActivity {
         });
     }
 
-    /**
-     * Crea un botón para el nivel dado y lo añade al LinearLayout.
-     * Marca como bloqueado si el levelId > userCurrentLevel.
-     * Si el nombre del nivel es "Proximamente", se mostrará un AlertDialog informando que aún no se ha desarrollado.
-     */
     private void createLevelButton(String levelId, String levelName) {
         Button levelButton = new Button(this);
 
@@ -135,33 +132,26 @@ public class LevelSelectionActivity extends AppCompatActivity {
 
         int levelNumber = Integer.parseInt(levelId);
 
-        // Si el nombre es "Proximamente", se considerará que aún no está desarrollado
+        // "Proximamente" => ventana retro en vez de AlertDialog
         if (levelName != null && levelName.equalsIgnoreCase("Proximamente")) {
             levelButton.setOnClickListener(v -> {
-                new AlertDialog.Builder(this)
-                        .setTitle("Nivel no disponible")
-                        .setMessage("Este nivel aún no se ha desarrollado.")
-                        .setPositiveButton("Aceptar", null)
-                        .setCancelable(false)
-                        .show();
+                // Muestra la ventana "Nivel no disponible"
+                overlayView.showProximamenteWindow();
             });
-            // Aunque esté desbloqueado, no se lanza GameActivity
             levelButton.setEnabled(true);
             levelButton.setAlpha(1.0f);
         } else {
-            // Si el nivel está bloqueado (número mayor que userCurrentLevel)
+            // Bloqueado si levelNumber > userCurrentLevel
             if (levelNumber > userCurrentLevel) {
                 levelButton.setEnabled(false);
                 levelButton.setAlpha(0.5f);
             } else {
-                // Desbloqueado: agregar clickListener para ir al juego
+                // Desbloqueado: click => GameActivity
                 levelButton.setEnabled(true);
                 levelButton.setAlpha(1.0f);
                 levelButton.setOnClickListener(v -> {
-                    // Enviamos el nivel de este botón (levelNumber) a GameActivity
                     Intent intent = new Intent(LevelSelectionActivity.this, GameActivity.class);
                     intent.putExtra("level", levelNumber);
-                    // También se pasa el userCurrentLevel para que GameActivity pueda compararlos
                     intent.putExtra("userCurrentLevel", userCurrentLevel);
                     startActivity(intent);
                 });

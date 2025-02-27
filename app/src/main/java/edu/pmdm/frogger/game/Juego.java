@@ -25,7 +25,7 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
     private boolean positionsConfigured = false;
     private GameAudioManager gam = GameAudioManager.getInstance();
 
-    // Usaremos un Movie para el GIF:
+    // Usaremos un Movie para el GIF de "no_time":
     private Movie noTimeGif;
     private boolean noTimeGifStarted = false;
     private long noTimeGifStartTime = 0;
@@ -33,14 +33,17 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
     // Imagen estática de muerte (calavera)
     private Bitmap frogDeathBitmap;
 
-    // Animación de muerte
+    // Imagen al intentar volver a menu
+    private Bitmap sadFrogBitmap;
+
+    // Animación de muerte (frames en un AnimationDrawable)
     private AnimationDrawable froggerDeathAnim;
     private long froggerDeathAnimTotalDuration = 0L;
     private boolean froggerDeathAnimStarted = false;
     private boolean froggerDeathAnimFinished = false;
     private long froggerDeathAnimStartTime = 0L;
 
-    // Rectángulos para los botones
+    // Rectángulos para los botones de la ventana final
     private RectF retryButtonRect;
     private RectF menuButtonRect;
 
@@ -50,6 +53,29 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
     // Estrellas de victoria
     private Bitmap starBitmap;
     private int victoryStars = 0;
+
+    // Control del nivel actual
+    private int currentLevel;
+
+    // --- Scroll manual de agua en nivel 1 ---
+    private Bitmap waterBitmap;
+    private float waterOffsetX = 0;
+    private static final float WATER_SCROLL_SPEED = 2f;
+
+    // --- Scroll manual de arena en nivel 2 ---
+    private Bitmap sandBitmap;
+    private float sandOffsetX = 0;
+    private static final float SAND_SCROLL_SPEED = 1.5f;
+
+    // --- Scroll manual de espacio en nivel 3 ---
+    private Bitmap spaceBitmap;
+    private float spaceOffsetX = 0;
+    private static final float SPACE_SCROLL_SPEED = 2.2f;
+
+    // Ventana de confirmación para salir
+    private boolean showExitConfirmWindow = false;
+    private RectF exitYesRect; // Botón "SÍ"
+    private RectF exitNoRect;  // Botón "NO"
 
     public Juego(android.content.Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -63,9 +89,8 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
         // Cargar la estrella
         starBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.star);
 
-        // Cargar el GIF "no_time" usando Movie
+        // Cargar el GIF "no_time" usando Movie (para derrota por tiempo)
         try {
-            // Si lo tienes en res/raw/no_time.gif:
             InputStream is = getResources().openRawResource(R.raw.no_time);
             noTimeGif = Movie.decodeStream(is);
         } catch (Exception e) {
@@ -76,11 +101,13 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
         // Cargar la imagen estática de muerte (calavera)
         frogDeathBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.frogger_death3);
 
+        sadFrogBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.sad_frog);
+
         // Cargar la animación frogger_death.xml (AnimationDrawable)
         froggerDeathAnim = (AnimationDrawable)
                 ResourcesCompat.getDrawable(getResources(), R.drawable.frogger_death, null);
         if (froggerDeathAnim != null) {
-            froggerDeathAnim.setOneShot(true); // Se reproduce una sola vez
+            froggerDeathAnim.setOneShot(true);
             for (int i = 0; i < froggerDeathAnim.getNumberOfFrames(); i++) {
                 froggerDeathAnimTotalDuration += froggerDeathAnim.getDuration(i);
             }
@@ -92,32 +119,58 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
     }
 
     public void setLevel(int level) {
+        currentLevel = level; // Guardamos el nivel actual
         int mapResource;
+
         switch (level) {
             case 1:
                 mapResource = R.drawable.map_level1;
                 gam.levelOneTheme(getContext());
                 gam.idleCroak(getContext());
                 gam.carHonks(getContext());
+
+                // Cargamos la textura de agua (nivel 1)
+                waterBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.water);
+                sandBitmap = null;
+                spaceBitmap = null;
                 break;
+
             case 2:
                 mapResource = R.drawable.map_level2;
                 gam.levelTwoTheme(getContext());
                 gam.idleCroak(getContext());
                 gam.carHonks(getContext());
+
+                // Cargamos la textura de arena (nivel 2)
+                sandBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.sand);
+                waterBitmap = null;
+                spaceBitmap = null;
                 break;
+
             case 3:
                 mapResource = R.drawable.map_level3;
                 gam.levelThreeTheme(getContext());
                 gam.idleCroak(getContext());
                 gam.carHonks(getContext());
+
+                // Cargamos la textura de espacio (nivel 3)
+                spaceBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.space);
+                waterBitmap = null;
+                sandBitmap = null;
                 break;
+
             default:
+                // Por defecto, tratamos como si fuera nivel 1
                 mapResource = R.drawable.map_level1;
                 gam.levelOneTheme(getContext());
                 gam.idleCroak(getContext());
                 gam.carHonks(getContext());
+
+                waterBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.water);
+                sandBitmap = null;
+                spaceBitmap = null;
         }
+
         background = BitmapFactory.decodeResource(getResources(), mapResource);
     }
 
@@ -162,9 +215,50 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
         gameEngine.configurePositions(width, mapHeight);
     }
 
+    /**
+     * Update del SurfaceView. Aquí:
+     * - Llamamos a gameEngine.update() si no está en pausa.
+     * - Movemos los offsets de agua/arena/espacio solo si no está en pausa ni acabado el juego.
+     */
     public void update() {
+        // 1) Actualizar lógica del juego
         if (gameEngine != null) {
-            gameEngine.update();
+            // Si el juego no está en pausa, actualizamos
+            if (!gameEngine.isPaused()) {
+                gameEngine.update();
+            }
+
+            // Si el juego ha terminado (victoria o derrota), no movemos más el scroll
+            if (gameEngine.isGameWon() || gameEngine.isGameOver()) {
+                return;
+            }
+        }
+
+        // 2) Si el juego no está en pausa, actualizamos offsets
+        if (gameEngine != null && gameEngine.isPaused()) {
+            // Si está en pausa, no movemos nada
+            return;
+        }
+
+        if (currentLevel == 1 && waterBitmap != null) {
+            waterOffsetX += WATER_SCROLL_SPEED;
+            if (waterOffsetX > waterBitmap.getWidth()) {
+                waterOffsetX -= waterBitmap.getWidth();
+            }
+        }
+
+        if (currentLevel == 2 && sandBitmap != null) {
+            sandOffsetX += SAND_SCROLL_SPEED;
+            if (sandOffsetX > sandBitmap.getWidth()) {
+                sandOffsetX -= sandBitmap.getWidth();
+            }
+        }
+
+        if (currentLevel == 3 && spaceBitmap != null) {
+            spaceOffsetX += SPACE_SCROLL_SPEED;
+            if (spaceOffsetX > spaceBitmap.getWidth()) {
+                spaceOffsetX -= spaceBitmap.getWidth();
+            }
         }
     }
 
@@ -176,29 +270,86 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
         int canvasWidth = canvas.getWidth();
         int canvasHeight = canvas.getHeight();
         int bottomOffset = 300;
-        Rect dstRect = new Rect(0, 0, canvasWidth, canvasHeight - bottomOffset);
+        int mapHeight = canvasHeight - bottomOffset;
+        Rect dstRect = new Rect(0, 0, canvasWidth, mapHeight);
 
         // Fondo del juego
         if (background != null) {
             canvas.drawBitmap(background, null, dstRect, null);
         }
 
-        // Lógica del GameEngine
+        // --- Nivel 1: Agua scrolleando ---
+        if (currentLevel == 1 && waterBitmap != null) {
+            int waterTop = (int) (0.08f * mapHeight);
+            int waterBottom = (int) (0.46f * mapHeight);
+            int waterHeight = waterBottom - waterTop;
+
+            for (float x = -waterOffsetX; x < canvasWidth; x += waterBitmap.getWidth()) {
+                Rect srcRect = new Rect(0, 0, waterBitmap.getWidth(), waterBitmap.getHeight());
+                Rect dstRectWater = new Rect(
+                        (int) x,
+                        waterTop,
+                        (int) (x + waterBitmap.getWidth()),
+                        waterTop + waterHeight
+                );
+                canvas.drawBitmap(waterBitmap, srcRect, dstRectWater, null);
+            }
+        }
+
+        // --- Nivel 2: Arena scrolleando ---
+        if (currentLevel == 2 && sandBitmap != null) {
+            int sandTop = (int) (0.08f * mapHeight);
+            int sandBottom = (int) (0.46f * mapHeight);
+            int sandHeight = sandBottom - sandTop;
+
+            for (float x = -sandOffsetX; x < canvasWidth; x += sandBitmap.getWidth()) {
+                Rect srcRect = new Rect(0, 0, sandBitmap.getWidth(), sandBitmap.getHeight());
+                Rect dstRectSand = new Rect(
+                        (int) x,
+                        sandTop,
+                        (int) (x + sandBitmap.getWidth()),
+                        sandTop + sandHeight
+                );
+                canvas.drawBitmap(sandBitmap, srcRect, dstRectSand, null);
+            }
+        }
+
+        // --- Nivel 3: Espacio scrolleando ---
+        if (currentLevel == 3 && spaceBitmap != null) {
+            int spaceTop = (int) (0.08f * mapHeight);
+            int spaceBottom = (int) (0.46f * mapHeight);
+            int spaceHeight = spaceBottom - spaceTop;
+
+            for (float x = -spaceOffsetX; x < canvasWidth; x += spaceBitmap.getWidth()) {
+                Rect srcRect = new Rect(0, 0, spaceBitmap.getWidth(), spaceBitmap.getHeight());
+                Rect dstRectSpace = new Rect(
+                        (int) x,
+                        spaceTop,
+                        (int) (x + spaceBitmap.getWidth()),
+                        spaceTop + spaceHeight
+                );
+                canvas.drawBitmap(spaceBitmap, srcRect, dstRectSpace, null);
+            }
+        }
+
+        // Lógica del GameEngine (rana, obstáculos, etc.)
         if (gameEngine != null) {
             gameEngine.draw(canvas);
 
             // Barra de tiempo
-            float timeRatio = gameEngine.getTimeRatio();
-            int barHeight = 20;
-            Paint bgPaint = new Paint();
-            bgPaint.setColor(Color.DKGRAY);
-            Paint timeBarPaint = new Paint();
-            timeBarPaint.setColor(Color.RED);
-            canvas.drawRect(0, 0, canvasWidth, barHeight, bgPaint);
-            canvas.drawRect(0, 0, (int) (canvasWidth * timeRatio), barHeight, timeBarPaint);
+            if (!gameEngine.isPaused()) {
+                float timeRatio = gameEngine.getTimeRatio();
+                int barHeight = 20;
+                Paint bgPaint = new Paint();
+                bgPaint.setColor(Color.DKGRAY);
+                Paint timeBarPaint = new Paint();
+                timeBarPaint.setColor(Color.RED);
+                canvas.drawRect(0, 0, canvasWidth, barHeight, bgPaint);
+                canvas.drawRect(0, 0, (int) (canvasWidth * timeRatio), barHeight, timeBarPaint);
+            }
         }
 
-        // Ventana final
+        // --- Ventana final (ganar/perder) ---
         if (gameEngine != null && (gameEngine.isGameWon() || gameEngine.isGameOver())) {
             // Fondo overlay
             Paint overlayPaint = new Paint();
@@ -277,28 +428,22 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
 
                 // (B1) Derrota por tiempo => reproducir no_timeGif
                 if (isTimeOut && noTimeGif != null) {
-                    // Iniciamos el GIF si no lo hemos hecho
                     if (!noTimeGifStarted) {
                         noTimeGifStartTime = System.currentTimeMillis();
                         noTimeGifStarted = true;
                     }
-                    // Calcular el tiempo relativo
                     long now = System.currentTimeMillis();
                     int relTime = (int) ((now - noTimeGifStartTime) % noTimeGif.duration());
 
                     noTimeGif.setTime(relTime);
 
-                    // Para escalar el GIF al tamaño de imageRect
                     canvas.save();
-                    // Trasladar el canvas a la esquina superior izquierda de imageRect
                     canvas.translate(imageX, imageY);
 
-                    // Calcular escalado
                     float scaleX = imageSize / noTimeGif.width();
                     float scaleY = imageSize / noTimeGif.height();
                     canvas.scale(scaleX, scaleY);
 
-                    // Dibujar el GIF en (0,0) con esa escala
                     noTimeGif.draw(canvas, 0, 0);
                     canvas.restore();
                 }
@@ -329,7 +474,7 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
                 }
             }
 
-            // Botones
+            // Botones finales (REINTENTAR / MENÚ)
             float buttonWidth = windowWidth * 0.4f;
             float buttonHeight = 80;
             float spaceBetween = windowWidth * 0.05f;
@@ -348,6 +493,82 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
 
             drawRetroButton(canvas, retryButtonRect, "REINTENTAR");
             drawRetroButton(canvas, menuButtonRect, "MENÚ");
+        }
+
+        // --- Ventana de confirmación de salida (si se ha pedido) ---
+// --- Ventana de confirmación de salida (si se ha pedido) ---
+        if (showExitConfirmWindow) {
+            // Fondo overlay
+            Paint overlayPaint = new Paint();
+            overlayPaint.setColor(Color.argb(200, 0, 0, 0));
+            canvas.drawRect(0, 0, canvasWidth, canvasHeight, overlayPaint);
+
+            // Ventana centrada
+            int windowWidth = (int) (canvasWidth * 0.75f);
+            int windowHeight = (int) (canvasHeight * 0.35f);
+            int left = (canvasWidth - windowWidth) / 2;
+            int top = (canvasHeight - windowHeight) / 2;
+            RectF windowRect = new RectF(left, top, left + windowWidth, top + windowHeight);
+
+            // Fondo negro
+            Paint windowPaint = new Paint();
+            windowPaint.setColor(Color.BLACK);
+            canvas.drawRect(windowRect, windowPaint);
+
+            // Borde verde
+            Paint borderPaint = new Paint();
+            borderPaint.setColor(Color.GREEN);
+            borderPaint.setStyle(Paint.Style.STROKE);
+            borderPaint.setStrokeWidth(8);
+            canvas.drawRect(windowRect, borderPaint);
+
+            // Texto
+            Paint textPaint = new Paint();
+            textPaint.setColor(Color.GREEN);
+            textPaint.setAntiAlias(true);
+            textPaint.setTypeface(retroTypeface);
+            textPaint.setTextSize(32);
+            textPaint.setTextAlign(Paint.Align.CENTER);
+
+            String confirmMessage = "¿Salir al Menú?\nPerderás el \nprogreso actual.\n";
+            float textX = canvasWidth / 2f;    // Centramos en X
+            float lineSpacing = 40f;          // Espaciado entre líneas
+            float currentY = top + (windowHeight * 0.15f); // Texto un poco más arriba
+
+            // Dividimos en líneas y las dibujamos
+            String[] lines = confirmMessage.split("\n");
+            for (String line : lines) {
+                canvas.drawText(line, textX, currentY, textPaint);
+                currentY += lineSpacing;
+            }
+
+            // DIBUJAR sad_frog centrada debajo del texto
+            if (sadFrogBitmap != null) {
+                float frogSize = windowWidth * 0.25f; // Ajusta el tamaño a tu gusto
+                float frogX = (canvasWidth / 2f) - (frogSize / 2f); // Centrado horizontal
+                float frogY = currentY + 10; // Un poco debajo del texto
+                RectF frogRect = new RectF(frogX, frogY, frogX + frogSize, frogY + frogSize);
+                canvas.drawBitmap(sadFrogBitmap, null, frogRect, null);
+
+                // Actualizamos currentY para que los botones queden más abajo si hace falta
+                currentY = frogY + frogSize + 20;
+            }
+
+            // Botones (Sí/No)
+            float btnW = windowWidth * 0.3f;
+            float btnH = 80;
+            float spaceBetween = windowWidth * 0.1f;
+            float marginBottom = 30;
+            float buttonTop = top + windowHeight - btnH - marginBottom; // Ajuste para situarlos al final
+
+            float yesLeft = (canvasWidth / 2f) - btnW - (spaceBetween / 2f);
+            exitYesRect = new RectF(yesLeft, buttonTop, yesLeft + btnW, buttonTop + btnH);
+
+            float noLeft = (canvasWidth / 2f) + (spaceBetween / 2f);
+            exitNoRect = new RectF(noLeft, buttonTop, noLeft + btnW, buttonTop + btnH);
+
+            drawRetroButton(canvas, exitYesRect, "SÍ");
+            drawRetroButton(canvas, exitNoRect, "NO");
         }
     }
 
@@ -378,12 +599,37 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
-            if (gameEngine != null && (gameEngine.isGameWon() || gameEngine.isGameOver())) {
-                float touchX = event.getX();
-                float touchY = event.getY();
+            float touchX = event.getX();
+            float touchY = event.getY();
 
+            // 1) Si estamos mostrando la ventana de confirmación de salida
+            if (showExitConfirmWindow) {
+                if (exitYesRect != null && exitYesRect.contains(touchX, touchY)) {
+                    // "SÍ": Volvemos a MainActivity
+                    Activity activity = (Activity) getContext();
+                    Intent intent = new Intent(activity, MainActivity.class);
+                    activity.startActivity(intent);
+                    activity.finish();
+                    return true;
+                }
+                if (exitNoRect != null && exitNoRect.contains(touchX, touchY)) {
+                    // "NO": Ocultamos la ventana y reanudamos
+                    showExitConfirmWindow = false;
+                    // Quitar la pausa en GameEngine
+                    if (gameEngine != null) {
+                        gameEngine.setPaused(false);
+                    }
+                    return true;
+                }
+                // Si clic fuera de los botones, no hacemos nada
+                return true;
+            }
+
+            // 2) Si el juego está en ventana final (ganar/perder)
+            if (gameEngine != null && (gameEngine.isGameWon() || gameEngine.isGameOver())) {
                 if (retryButtonRect != null && retryButtonRect.contains(touchX, touchY)) {
                     Activity activity = (Activity) getContext();
+                    // Reinicia la Activity para volver a jugar
                     activity.recreate();
                     return true;
                 }
@@ -398,6 +644,17 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
             }
         }
         return super.onTouchEvent(event);
+    }
+
+    /**
+     * Método público para activar la ventana de confirmación.
+     * Se pausa el juego en el GameEngine.
+     */
+    public void requestExitConfirmation() {
+        showExitConfirmWindow = true;
+        if (gameEngine != null) {
+            gameEngine.setPaused(true);
+        }
     }
 
     public void movePlayerLeft() {

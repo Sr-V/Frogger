@@ -1,9 +1,11 @@
 package edu.pmdm.frogger.activities;
 
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ImageButton;
+
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.WindowCompat;
 
@@ -12,6 +14,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.HashMap;
 import java.util.Map;
+
 import edu.pmdm.frogger.R;
 import edu.pmdm.frogger.firebase.FirebaseAuthManager;
 import edu.pmdm.frogger.firebase.FirestoreManager;
@@ -69,6 +72,13 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
         btnDown.setOnClickListener(v -> juegoView.movePlayerDown());
     }
 
+    @SuppressLint("MissingSuperCall")
+    @Override
+    public void onBackPressed() {
+        juegoView.requestExitConfirmation();
+        // No llamamos a super.onBackPressed().
+    }
+
     @Override
     public void onGameWon(boolean shouldIncrementLevel) {
         setButtonsEnabled(false);
@@ -87,8 +97,7 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
             estrellas = 1;
         }
 
-        // **** AÑADIR ESTA LÍNEA ****
-        // Informamos al SurfaceView (Juego) del número de estrellas
+        // Informar al SurfaceView del número de estrellas
         juegoView.setVictoryStars(estrellas);
 
         // Obtenemos el UID del usuario logueado
