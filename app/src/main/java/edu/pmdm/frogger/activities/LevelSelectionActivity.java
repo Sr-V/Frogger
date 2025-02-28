@@ -74,8 +74,6 @@ public class LevelSelectionActivity extends AppCompatActivity {
         Button btnBackToMain = findViewById(R.id.btnBackToMain);
         btnBackToMain.setOnClickListener(v -> {
             // Vuelve a MainActivity
-            Intent intent = new Intent(LevelSelectionActivity.this, MainActivity.class);
-            startActivity(intent);
             finish();
         });
     }
