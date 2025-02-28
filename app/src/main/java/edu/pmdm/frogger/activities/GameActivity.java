@@ -30,7 +30,7 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
     private ImageButton btnLeft, btnUp, btnRight, btnDown;
     private int level;            // Nivel que se está jugando
     private int userCurrentLevel; // Nivel actual del usuario en Firebase
-    private GameAudioManager gam = GameAudioManager.getInstance();
+    private GameAudioManager gam = GameAudioManager.getInstance(this);
     private boolean paused = false;
 
     @Override
