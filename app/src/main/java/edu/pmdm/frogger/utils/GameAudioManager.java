@@ -1,6 +1,7 @@
 package edu.pmdm.frogger.utils;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.media.MediaPlayer;
 import android.os.Handler;
 import android.util.Log;
@@ -10,26 +11,36 @@ import edu.pmdm.frogger.R;
 public class GameAudioManager {
 
     private static GameAudioManager instance;
-    MediaPlayer mainThemeMp;
-    MediaPlayer levelOneThemeMp;
-    MediaPlayer levelTwoThemeMp;
-    MediaPlayer levelThreeThemeMp;
-    MediaPlayer idleCroakMp;
-    MediaPlayer carHonksMp;
+    public MediaPlayer mainThemeMp;
+    public MediaPlayer levelOneThemeMp;
+    public MediaPlayer levelTwoThemeMp;
+    public MediaPlayer levelThreeThemeMp;
+    public MediaPlayer idleCroakMp;
+    public MediaPlayer carHonksMp;
 
+    public float MUSIC_VOLUME = 1.0f;
+    public float AUDIO_VOLUME = 1.0f;
     private GameAudioManager() {}
 
     // Método estático para obtener la instancia única
-    public static GameAudioManager getInstance() {
+    public static GameAudioManager getInstance(Context context) {
         if (instance == null) {
             instance = new GameAudioManager();
+            instance.loadVolumeSettings(context);
         }
         return instance;
+    }
+
+    private void loadVolumeSettings(Context context) {
+        SharedPreferences sharedPreferences = context.getSharedPreferences("AudioSettings", Context.MODE_PRIVATE);
+        MUSIC_VOLUME = sharedPreferences.getFloat("MUSIC_AUDIO_LEVEL", 1.0f);
+        AUDIO_VOLUME = sharedPreferences.getFloat("AUDIO_LEVEL", 1.0f);
     }
 
     public void playerMovement(Context c){
 
         MediaPlayer mp = MediaPlayer.create(c, R.raw.frog_jump);
+        mp.setVolume(AUDIO_VOLUME, AUDIO_VOLUME);
         mp.start();
         mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
             @Override
@@ -39,6 +50,7 @@ public class GameAudioManager {
         });
 
         MediaPlayer mp2 = MediaPlayer.create(c, R.raw.frog_ribbit);
+        mp2.setVolume(AUDIO_VOLUME, AUDIO_VOLUME);
         mp2.start();
         mp2.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
             @Override
@@ -51,6 +63,7 @@ public class GameAudioManager {
 
     public void playerDeath(Context c){
         MediaPlayer mp = MediaPlayer.create(c, R.raw.frog_death);
+        mp.setVolume(AUDIO_VOLUME, AUDIO_VOLUME);
         mp.start();
         mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
             @Override
@@ -77,7 +90,7 @@ public class GameAudioManager {
             @Override
             public void run() {
                 if (idleCroakMp != null) {
-                    idleCroakMp.setVolume(0.5f, 0.5f);
+                    idleCroakMp.setVolume(AUDIO_VOLUME /2, AUDIO_VOLUME /2);
                     idleCroakMp.start();
                     idleCroakMp.setOnCompletionListener(mediaPlayer -> {
                         new Handler().postDelayed(this, 9000);
@@ -92,6 +105,7 @@ public class GameAudioManager {
 
     public void mainThemeSong(Context c){
         mainThemeMp = MediaPlayer.create(c, R.raw.frog_song2);
+        mainThemeMp.setVolume(MUSIC_VOLUME, MUSIC_VOLUME);
         mainThemeMp.start();
         mainThemeMp.setLooping(true);
     }
@@ -106,6 +120,7 @@ public class GameAudioManager {
 
     public void levelOneTheme(Context c){
         levelOneThemeMp = MediaPlayer.create(c, R.raw.frog_song3);
+        levelOneThemeMp.setVolume(MUSIC_VOLUME, MUSIC_VOLUME);
         levelOneThemeMp.start();
         levelOneThemeMp.setLooping(true);
     }
@@ -130,6 +145,7 @@ public class GameAudioManager {
 
     public void levelTwoTheme(Context c){
         levelTwoThemeMp = MediaPlayer.create(c, R.raw.frog_song4);
+        levelTwoThemeMp.setVolume(MUSIC_VOLUME, MUSIC_VOLUME);
         levelTwoThemeMp.start();
         levelTwoThemeMp.setLooping(true);
     }
@@ -144,6 +160,7 @@ public class GameAudioManager {
 
     public void levelThreeTheme(Context c){
         levelThreeThemeMp = MediaPlayer.create(c, R.raw.frog_song5);
+        levelThreeThemeMp.setVolume(MUSIC_VOLUME, MUSIC_VOLUME);
         levelThreeThemeMp.start();
         levelThreeThemeMp.setLooping(true);
     }
@@ -163,6 +180,7 @@ public class GameAudioManager {
             @Override
             public void run() {
                 if (carHonksMp != null) {
+                    carHonksMp.setVolume(AUDIO_VOLUME, AUDIO_VOLUME);
                     carHonksMp.start();
                     carHonksMp.setOnCompletionListener(mediaPlayer -> {
                         new Handler().postDelayed(this, 7000);
@@ -192,6 +210,7 @@ public class GameAudioManager {
 
     public void keyCollected(Context c){
         MediaPlayer mp = MediaPlayer.create(c, R.raw.key_found);
+        mp.setVolume(AUDIO_VOLUME, AUDIO_VOLUME);
         mp.start();
         mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
             @Override
@@ -204,6 +223,7 @@ public class GameAudioManager {
 
     public void playerDrowned(Context c){
         MediaPlayer mp = MediaPlayer.create(c, R.raw.drowning);
+        mp.setVolume(AUDIO_VOLUME, AUDIO_VOLUME);
         mp.start();
         mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
             @Override
@@ -215,6 +235,7 @@ public class GameAudioManager {
 
     public void playerSand(Context c){
         MediaPlayer mp = MediaPlayer.create(c, R.raw.sand_fall);
+        mp.setVolume(AUDIO_VOLUME, AUDIO_VOLUME);
         mp.start();
         mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
             @Override
@@ -226,6 +247,7 @@ public class GameAudioManager {
 
     public void playerFell(Context c){
         MediaPlayer mp = MediaPlayer.create(c, R.raw.fall);
+        mp.setVolume(AUDIO_VOLUME, AUDIO_VOLUME);
         mp.start();
         mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
             @Override
