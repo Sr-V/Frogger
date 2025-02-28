@@ -88,6 +88,12 @@ public class FirestoreManager {
         userRef.get().addOnCompleteListener(listener);
     }
 
+    public void getAllUsers(OnCompleteListener<QuerySnapshot> listener){
+        db.collection(COLLECTION_USERS)
+                .get()
+                .addOnCompleteListener(listener);
+    }
+
     /**
      * Actualiza campos específicos de un usuario.
      * <p>
