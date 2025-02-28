@@ -76,7 +76,7 @@ public class GameEngine {
         this.level = level;
         this.userCurrentLevel = userCurrentLevel;
         this.listener = listener;
-        this.gam = GameAudioManager.getInstance();
+        this.gam = GameAudioManager.getInstance(context);
         this.context = context;
 
         originalLifeBitmap = BitmapFactory.decodeResource(context.getResources(), R.drawable.frog_life);
@@ -192,7 +192,6 @@ public class GameEngine {
         levelStartTime = System.currentTimeMillis();
         finalElapsedTime = null;
         lostByTime = false;
-        lives = 3;
         if (listener != null) {
             listener.onButtonsBlocked(false);
         }
@@ -234,6 +233,7 @@ public class GameEngine {
                 if (collisionManager.checkCollision(player, obstacle)) {
                     gam.playerDeath(context);
                     lives--;
+                    Log.d(TAG, "Colisión detectada. Vidas restantes: " + lives);
                     if (lives > 0) {
                         if (listener != null) listener.onButtonsBlocked(true);
                         player.playDeathAnimation();
@@ -261,6 +261,7 @@ public class GameEngine {
             float frogFootY = player.getBoundingBox().bottom;
             if (frogFootY >= pathTop && frogFootY <= pathBottom && !path.isFrogSafe(player)) {
                 lives--;
+                Log.d(TAG, "Colisión en zona de camino. Vidas restantes: " + lives);
                 if (level == 1) {
                     gam.playerDrowned(context);
                 } else if (level == 2) {
