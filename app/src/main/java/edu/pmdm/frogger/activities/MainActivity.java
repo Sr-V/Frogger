@@ -32,7 +32,7 @@ public class MainActivity extends AppCompatActivity {
     // Nivel y puntuación actuales del usuario
     private int currentLevel = 1;
     private int currentScore = 0; // ahora representa totalStars
-    private GameAudioManager gam = GameAudioManager.getInstance();
+    private GameAudioManager gam;
 
     // Nuevo: referencia al OverlayView para ventanas retro
     private AlertsOverlayView overlayView;
@@ -40,6 +40,9 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        gam = GameAudioManager.getInstance(this);
+
         // Habilita la interfaz edge-to-edge
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
@@ -62,6 +65,8 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.playGame).setVisibility(View.GONE);
         findViewById(R.id.levels).setVisibility(View.GONE);
         findViewById(R.id.btnGoogleLogout).setVisibility(View.GONE);
+        findViewById(R.id.leaderboard).setVisibility(View.GONE);
+        findViewById(R.id.settings).setVisibility(View.GONE);
 
         // Se muestra el ProgressBar mientras se cargan los datos
         findViewById(R.id.progressBar).setVisibility(View.VISIBLE);
@@ -106,6 +111,17 @@ public class MainActivity extends AppCompatActivity {
             Intent intent = new Intent(MainActivity.this, LevelSelectionActivity.class);
             startActivity(intent);
         });
+
+        findViewById(R.id.settings).setOnClickListener(v ->{
+            Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
+            startActivity(intent);
+        });
+
+        findViewById(R.id.leaderboard).setOnClickListener(v ->{
+            Intent intent = new Intent(MainActivity.this, LeaderboardActivity.class);
+            startActivity(intent);
+        });
+
     }
 
     /**
@@ -187,6 +203,8 @@ public class MainActivity extends AppCompatActivity {
         findViewById(R.id.playGame).setVisibility(View.VISIBLE);
         findViewById(R.id.levels).setVisibility(View.VISIBLE);
         findViewById(R.id.btnGoogleLogout).setVisibility(View.VISIBLE);
+        findViewById(R.id.leaderboard).setVisibility(View.VISIBLE);
+        findViewById(R.id.settings).setVisibility(View.VISIBLE);
     }
 
     private void signOut() {
