@@ -66,6 +66,11 @@ public class SettingsActivity extends AppCompatActivity {
             finish();
         });
 
+        findViewById(R.id.imageButton).setOnClickListener(v ->{
+            GameAudioManager gam = GameAudioManager.getInstance(this);
+            gam.soundTest(this, findViewById(R.id.imageButton));
+        });
+
     }
 
     private void saveVolumeSettings(String key, float value) {

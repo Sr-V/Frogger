@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import android.media.MediaPlayer;
 import android.os.Handler;
 import android.util.Log;
+import android.widget.ImageButton;
 
 import edu.pmdm.frogger.R;
 
@@ -73,13 +74,24 @@ public class GameAudioManager {
         });
     }
 
-    public void wallCollision(Context c){
-        MediaPlayer mp = MediaPlayer.create(c, R.raw.frog_wall_collision);
+    public void soundTest(Context c, ImageButton button) {
+        // Deshabilitar el botón para evitar múltiples clics
+        button.setEnabled(false);
+
+        // Crear y configurar el MediaPlayer
+        MediaPlayer mp = MediaPlayer.create(c, R.raw.frog_croak);
+        mp.setVolume(AUDIO_VOLUME, AUDIO_VOLUME);
         mp.start();
+
+        // Configurar el listener para cuando el audio termine
         mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
             @Override
             public void onCompletion(MediaPlayer mediaPlayer) {
+                // Liberar el MediaPlayer
                 mp.release();
+
+                // Habilitar el botón nuevamente
+                button.setEnabled(true);
             }
         });
     }
