@@ -8,6 +8,19 @@
     android:background="#000000"
     tools:context=".activities.LeaderboardActivity">
 
+    <ImageView
+        android:id="@+id/imageView7"
+        android:layout_width="538dp"
+        android:layout_height="1124dp"
+        android:scaleX="2.1"
+        android:scaleY="2.1"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:srcCompat="@drawable/throne_bg"
+        android:alpha="0.4"/>
+
     <TextView
         android:id="@+id/textView"
         android:layout_width="wrap_content"
@@ -26,13 +39,15 @@
         android:layout_width="0dp"
         android:layout_height="0dp"
         android:layout_marginTop="16dp"
-        android:background="#000000"
         android:orientation="vertical"
         android:padding="16dp"
         app:layout_constraintBottom_toTopOf="@+id/btnBackToMain"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/textView"></LinearLayout>
+        app:layout_constraintTop_toBottomOf="@id/textView">
+
+
+    </LinearLayout>
 
     <Button
         android:id="@+id/btnBackToMain"
