@@ -1,14 +1,19 @@
 package edu.pmdm.frogger.activities;
 
 import android.content.Intent;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -16,10 +21,13 @@ import androidx.core.view.WindowInsetsCompat;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import edu.pmdm.frogger.R;
-import edu.pmdm.frogger.utils.AlertsOverlayView; // <--- tu overlay
 import edu.pmdm.frogger.firebase.FirebaseAuthManager;
 import edu.pmdm.frogger.firebase.FirestoreManager;
+import edu.pmdm.frogger.utils.AlertsOverlayView;
 
 public class LevelSelectionActivity extends AppCompatActivity {
 
@@ -29,13 +37,13 @@ public class LevelSelectionActivity extends AppCompatActivity {
     private FirestoreManager firestoreManager;
     private FirebaseAuthManager authManager;
 
-    // LinearLayout donde agregaremos los botones de nivel
+    // Contenedor para los ítems de nivel
     private LinearLayout linearLayoutLevels;
 
-    // Guardaremos el currentLevel del usuario (o el máximo desbloqueado)
+    // Nivel actual (o máximo desbloqueado) del usuario
     private int userCurrentLevel = 1;
 
-    // Nuevo: overlay para ventanas retro
+    // Overlay para ventanas retro
     private AlertsOverlayView overlayView;
 
     @Override
@@ -44,21 +52,21 @@ public class LevelSelectionActivity extends AppCompatActivity {
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_level_selection);
 
-        // Ajustar insets
+        // Ajustar los insets para los system bars
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
 
-        // Inicializamos FirestoreManager y AuthManager
+        // Inicializamos los gestores
         firestoreManager = FirestoreManager.getInstance();
         authManager = FirebaseAuthManager.getInstance(this);
 
         // Referencia al contenedor de niveles
         linearLayoutLevels = findViewById(R.id.linearLayoutLevels);
 
-        // Agregamos el overlay de alertas retro
+        // Agregar el overlay para ventanas retro
         overlayView = new AlertsOverlayView(this);
         addContentView(overlayView,
                 new android.view.ViewGroup.LayoutParams(
@@ -68,14 +76,11 @@ public class LevelSelectionActivity extends AppCompatActivity {
         );
         overlayView.setVisibility(View.GONE);
 
-        // 1) Obtener el nivel actual del usuario y luego cargar la lista de niveles
+        // Obtenemos el nivel actual del usuario y luego cargamos la lista de niveles
         getUserCurrentLevel();
 
         Button btnBackToMain = findViewById(R.id.btnBackToMain);
-        btnBackToMain.setOnClickListener(v -> {
-            // Vuelve a MainActivity
-            finish();
-        });
+        btnBackToMain.setOnClickListener(v -> finish());
     }
 
     private void getUserCurrentLevel() {
@@ -92,7 +97,7 @@ public class LevelSelectionActivity extends AppCompatActivity {
             } else {
                 Log.e(TAG, "Error al obtener datos de usuario", task.getException());
             }
-            // Independientemente de si hay error o no, intenta cargar los niveles
+            // Cargar niveles después de obtener el nivel actual
             loadAllLevels();
         });
     }
@@ -100,17 +105,40 @@ public class LevelSelectionActivity extends AppCompatActivity {
     private void loadAllLevels() {
         firestoreManager.getAllLevels(task -> {
             if (task.isSuccessful()) {
-                QuerySnapshot querySnapshot = task.getResult();
-                if (querySnapshot != null) {
-                    // Recorremos los documentos de la colección "levels"
-                    for (DocumentSnapshot doc : querySnapshot.getDocuments()) {
-                        // El ID del documento es el "number" del nivel (1, 2, 3, etc.)
-                        String levelId = doc.getId();
-                        String levelName = doc.getString("name");
+                QuerySnapshot levelQuery = task.getResult();
+                if (levelQuery != null) {
+                    // Guardamos la lista de niveles
+                    // (cada doc tiene un ID = "1", "2", "3", etc. y un campo "name")
+                    String uid = authManager.getCurrentUser().getUid();
 
-                        // Crear un botón por cada nivel
-                        createLevelButton(levelId, levelName);
-                    }
+                    // Ahora consultamos la subcolección "maps" del usuario para obtener las estrellas
+                    firestoreManager.getUserMaps(uid, mapsTask -> {
+                        if (mapsTask.isSuccessful()) {
+                            QuerySnapshot mapsSnapshot = mapsTask.getResult();
+
+                            // Construimos un map <levelId, starsCount> con las estrellas de cada nivel
+                            Map<String, Integer> userStarsMap = new HashMap<>();
+                            if (mapsSnapshot != null) {
+                                for (DocumentSnapshot mapDoc : mapsSnapshot) {
+                                    Long starsLong = mapDoc.getLong("stars");
+                                    int starCount = (starsLong != null) ? starsLong.intValue() : 0;
+                                    userStarsMap.put(mapDoc.getId(), starCount);
+                                }
+                            }
+
+                            // Ahora creamos el CardView para cada nivel
+                            for (DocumentSnapshot doc : levelQuery.getDocuments()) {
+                                String levelId = doc.getId();         // p. ej. "1"
+                                String levelName = doc.getString("name"); // p. ej. "Talavera..."
+                                // Obtenemos cuántas estrellas tiene el usuario en este nivel
+                                int starCount = userStarsMap.getOrDefault(levelId, 0);
+
+                                createLevelButton(levelId, levelName, starCount);
+                            }
+                        } else {
+                            Log.e(TAG, "Error al obtener maps del usuario", mapsTask.getException());
+                        }
+                    });
                 }
             } else {
                 Log.e(TAG, "Error al cargar niveles", task.getException());
@@ -118,36 +146,62 @@ public class LevelSelectionActivity extends AppCompatActivity {
         });
     }
 
-    private void createLevelButton(String levelId, String levelName) {
-        Button levelButton = new Button(this);
+    private void createLevelButton(String levelId, String levelName, int starCount) {
+        // Inflamos el layout personalizado "level_item.xml"
+        LayoutInflater inflater = LayoutInflater.from(this);
+        View levelView = inflater.inflate(R.layout.level_item, linearLayoutLevels, false);
 
-        // Ajustes visuales
-        levelButton.setText("Nivel " + levelId + ": " + levelName);
-        levelButton.setTextColor(getResources().getColor(R.color.lime_green, null));
-        levelButton.setBackgroundTintList(getResources().getColorStateList(R.color.btn_background, null));
-        levelButton.setTextSize(12);
-        levelButton.setAllCaps(false);
+        // Referencias a las vistas
+        TextView tvLevelNumber = levelView.findViewById(R.id.tvLevelNumber);
+        TextView tvLevelName = levelView.findViewById(R.id.tvLevelName);
+        ImageView ivLockOrStars = levelView.findViewById(R.id.ivLockOrStars);
+        TextView tvStarsCount = levelView.findViewById(R.id.tvStarsCount);
 
+        // Rellenamos datos
         int levelNumber = Integer.parseInt(levelId);
+        tvLevelNumber.setText("Nivel " + levelId);
+        tvLevelName.setText(levelName);
 
-        // "Proximamente" => ventana retro en vez de AlertDialog
+        // Caso especial "Próximamente"
         if (levelName != null && levelName.equalsIgnoreCase("Proximamente")) {
-            levelButton.setOnClickListener(v -> {
-                // Muestra la ventana "Nivel no disponible"
-                overlayView.showProximamenteWindow();
-            });
-            levelButton.setEnabled(true);
-            levelButton.setAlpha(1.0f);
+            // Mostramos el candado y ocultamos estrellas
+            ivLockOrStars.setVisibility(View.VISIBLE);
+            ivLockOrStars.setImageResource(R.drawable.lock);
+            tvStarsCount.setVisibility(View.GONE);
+
+            levelView.setOnClickListener(v -> overlayView.showProximamenteWindow());
+            levelView.setAlpha(1.0f);
+
         } else {
-            // Bloqueado si levelNumber > userCurrentLevel
+            // Si el nivel está bloqueado (levelNumber > userCurrentLevel)
             if (levelNumber > userCurrentLevel) {
-                levelButton.setEnabled(false);
-                levelButton.setAlpha(0.5f);
+                ivLockOrStars.setVisibility(View.VISIBLE);
+                ivLockOrStars.setImageResource(R.drawable.lock);
+                tvStarsCount.setVisibility(View.GONE);
+
+                levelView.setAlpha(0.5f);
+                levelView.setOnClickListener(null);
+
             } else {
-                // Desbloqueado: click => GameActivity
-                levelButton.setEnabled(true);
-                levelButton.setAlpha(1.0f);
-                levelButton.setOnClickListener(v -> {
+                // Nivel desbloqueado: ocultamos el candado y mostramos las estrellas
+                ivLockOrStars.setVisibility(View.GONE);
+                tvStarsCount.setVisibility(View.VISIBLE);
+
+                // Ajustamos el drawable de la estrella para que sea 32dp x 32dp
+                Drawable starDrawable = ContextCompat.getDrawable(this, R.drawable.star);
+                if (starDrawable != null) {
+                    int starSize = (int) (32 * getResources().getDisplayMetrics().density); // 32dp
+                    starDrawable.setBounds(0, 0, starSize, starSize);
+                    tvStarsCount.setCompoundDrawables(starDrawable, null, null, null);
+                }
+
+                // Mostramos la cantidad real de estrellas
+                tvStarsCount.setText("x" + starCount);
+                tvStarsCount.setCompoundDrawablePadding(8);
+
+                levelView.setAlpha(1.0f);
+                levelView.setOnClickListener(v -> {
+                    // Ir al juego
                     Intent intent = new Intent(LevelSelectionActivity.this, GameActivity.class);
                     intent.putExtra("level", levelNumber);
                     intent.putExtra("userCurrentLevel", userCurrentLevel);
@@ -156,8 +210,8 @@ public class LevelSelectionActivity extends AppCompatActivity {
             }
         }
 
-        // Añadir el botón al contenedor
-        linearLayoutLevels.addView(levelButton);
+        // Agregamos la vista inflada al contenedor
+        linearLayoutLevels.addView(levelView);
     }
 
     @Override
