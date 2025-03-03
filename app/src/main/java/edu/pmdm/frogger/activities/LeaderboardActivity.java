@@ -1,14 +1,21 @@
 package edu.pmdm.frogger.activities;
 
+import static android.view.View.TEXT_ALIGNMENT_GRAVITY;
+
 import android.content.Intent;
+import android.graphics.Typeface;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
+import androidx.core.content.res.ResourcesCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -85,14 +92,43 @@ public class LeaderboardActivity extends AppCompatActivity {
     }
 
     private void createUserView(int position, String displayName, Long totalStars) {
-        TextView userView = new TextView(this);
-        userView.setText(position + ". " + displayName + " - " + totalStars + " estrellas");
-        userView.setTextSize(18);
-        userView.setTextColor(getResources().getColor(R.color.lime_green, null));
-        userView.setPadding(0, 8, 0, 8);
+        // Asegúrate de que displayName no sea null o vacío
+        if (displayName == null) {
+            displayName = "Usuario Desconocido";
+        }
 
-        // Añadir el TextView al contenedor
-        linearLayoutLeaderboard.addView(userView);
+        // Dividir por espacios
+        String[] parts = displayName.split("\\s+"); // \\s+ para cualquier espacio en blanco
+
+        // Si tiene 2 o más palabras, solo usamos las 2 primeras
+        if (parts.length >= 2) {
+            displayName = parts[0] + " " + parts[1];
+        }
+
+        // Inflamos la tarjeta, similar a level_item.xml
+        View itemView = getLayoutInflater().inflate(R.layout.leaderboard_item, linearLayoutLeaderboard, false);
+
+        // Referencias a los TextView dentro de la tarjeta
+        TextView tvPositionName = itemView.findViewById(R.id.tvPositionName);
+        TextView tvStarsCount = itemView.findViewById(R.id.tvStarsCount);
+
+        // Mostramos "1. NombreUsuario" a la izquierda
+        tvPositionName.setText(position + ". " + displayName);
+
+        // Ajustamos el drawable de la estrella (32dp) y lo ponemos a la izquierda del texto "xN"
+        Drawable starDrawable = ContextCompat.getDrawable(this, R.drawable.star);
+        if (starDrawable != null) {
+            int starSize = (int) (32 * getResources().getDisplayMetrics().density); // 32dp
+            starDrawable.setBounds(0, 0, starSize, starSize);
+            tvStarsCount.setCompoundDrawables(starDrawable, null, null, null);
+            tvStarsCount.setCompoundDrawablePadding(8);
+        }
+
+        // Ahora mostramos "xN" (por ejemplo, "x3")
+        tvStarsCount.setText("x" + totalStars);
+
+        // Agregamos la tarjeta al contenedor
+        linearLayoutLeaderboard.addView(itemView);
     }
 
     @Override

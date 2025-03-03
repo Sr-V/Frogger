@@ -113,21 +113,12 @@ public class FirestoreManager {
 
     /* ===== OPERACIONES CON NIVELES (SOLO LECTURA) ===== */
 
-    /**
-     * Lee un documento de nivel.
-     * <p>
-     * El documento se identifica por el número del nivel (por ejemplo, "1", "2", "3")
-     * y contiene los campos "name" y "theme".
-     * </p>
-     *
-     * @param levelId  Identificador del nivel.
-     * @param listener Listener que manejará el resultado de la lectura.
-     */
-    public void getLevel(String levelId, OnCompleteListener<DocumentSnapshot> listener) {
-        // Referencia al documento del nivel en la colección "levels"
-        DocumentReference levelRef = db.collection(COLLECTION_LEVELS).document(levelId);
-        // Obtiene el documento y agrega el listener para manejar el resultado
-        levelRef.get().addOnCompleteListener(listener);
+    public void getUserMaps(String uid, OnCompleteListener<QuerySnapshot> listener) {
+        db.collection(COLLECTION_USERS)
+                .document(uid)
+                .collection("maps")
+                .get()
+                .addOnCompleteListener(listener);
     }
 
     /**
