@@ -2,8 +2,16 @@ package edu.pmdm.frogger.game;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.graphics.*;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.Rect;
+import android.graphics.RectF;
+import android.graphics.Typeface;
 import android.graphics.drawable.AnimationDrawable;
+import android.graphics.Movie;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
@@ -11,85 +19,96 @@ import android.view.SurfaceView;
 
 import androidx.core.content.res.ResourcesCompat;
 
+import java.io.InputStream;
+
 import edu.pmdm.frogger.R;
 import edu.pmdm.frogger.activities.MainActivity;
 import edu.pmdm.frogger.utils.GameAudioManager;
 
-import java.io.InputStream;
-
+/**
+ * {@code Juego} es el SurfaceView principal del juego Frogger.
+ * Se encarga de gestionar la actualización y el renderizado de todos los elementos del juego,
+ * como el fondo, la rana, los obstáculos, las animaciones, botones y ventanas de confirmación.
+ */
 public class Juego extends SurfaceView implements SurfaceHolder.Callback {
 
-    private BucleJuego bucleJuego;
-    private GameEngine gameEngine;
-    private Bitmap background;
-    private boolean positionsConfigured = false;
-    private GameAudioManager gam = GameAudioManager.getInstance(getContext());
+    private BucleJuego bucleJuego;          // Hilo principal del juego
+    private GameEngine gameEngine;           // Motor del juego, que actualiza la lógica y renderizado
+    private Bitmap background;               // Fondo del nivel
+    private boolean positionsConfigured = false; // Indica si las posiciones iniciales han sido configuradas
+    private GameAudioManager gam = GameAudioManager.getInstance(getContext()); // Gestor de audio
 
-    // Usaremos un Movie para el GIF de "no_time":
+    // Variables para la animación del GIF "no_time" (derrota por tiempo)
     private Movie noTimeGif;
     private boolean noTimeGifStarted = false;
     private long noTimeGifStartTime = 0;
 
-    // Imagen estática de muerte (calavera)
+    // Imagen estática que representa la muerte (calavera)
     private Bitmap frogDeathBitmap;
 
-    // Imagen al intentar volver a menu
+    // Imagen que se muestra al intentar volver al menú (sad frog)
     private Bitmap sadFrogBitmap;
 
-    // Animación de muerte (frames en un AnimationDrawable)
+    // Animación de muerte de la rana, definida en un AnimationDrawable
     private AnimationDrawable froggerDeathAnim;
     private long froggerDeathAnimTotalDuration = 0L;
     private boolean froggerDeathAnimStarted = false;
     private boolean froggerDeathAnimFinished = false;
     private long froggerDeathAnimStartTime = 0L;
 
-    // Rectángulos para los botones de la ventana final
+    // Rectángulos que definen las zonas de los botones en la ventana final (REINTENTAR / MENÚ)
     private RectF retryButtonRect;
     private RectF menuButtonRect;
 
-    // Fuente retro
+    // Fuente retro para textos
     private Typeface retroTypeface;
 
-    // Estrellas de victoria
+    // Estrellas de victoria obtenidas al ganar el nivel
     private Bitmap starBitmap;
     private int victoryStars = 0;
 
     // Control del nivel actual
     private int currentLevel;
 
-    // --- Scroll manual de agua en nivel 1 ---
+    // --- Scroll manual de texturas en niveles ---
+    // Nivel 1: Agua
     private Bitmap waterBitmap;
     private float waterOffsetX = 0;
     private static final float WATER_SCROLL_SPEED = 2f;
-
-    // --- Scroll manual de arena en nivel 2 ---
+    // Nivel 2: Arena
     private Bitmap sandBitmap;
     private float sandOffsetX = 0;
     private static final float SAND_SCROLL_SPEED = 1.5f;
-
-    // --- Scroll manual de espacio en nivel 3 ---
+    // Nivel 3: Espacio
     private Bitmap spaceBitmap;
     private float spaceOffsetX = 0;
     private static final float SPACE_SCROLL_SPEED = 2.2f;
 
-    // Ventana de confirmación para salir
+    // Variables para la ventana de confirmación al intentar salir
     private boolean showExitConfirmWindow = false;
     private RectF exitYesRect; // Botón "SÍ"
     private RectF exitNoRect;  // Botón "NO"
 
+    /**
+     * Constructor de {@code Juego}. Se inicializan los callbacks del SurfaceHolder,
+     * se cargan recursos y se configura la fuente retro.
+     *
+     * @param context Contexto de la aplicación.
+     * @param attrs   Atributos XML.
+     */
     public Juego(android.content.Context context, AttributeSet attrs) {
         super(context, attrs);
         getHolder().addCallback(this);
         setFocusable(true);
         setFocusableInTouchMode(true);
 
-        // Fuente retro
+        // Cargar la fuente retro
         retroTypeface = ResourcesCompat.getFont(context, R.font.press_start_2p);
 
-        // Cargar la estrella
+        // Cargar la imagen de la estrella para la victoria
         starBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.star);
 
-        // Cargar el GIF "no_time" usando Movie (para derrota por tiempo)
+        // Cargar el GIF "no_time" usando la clase Movie para la derrota por tiempo
         try {
             InputStream is = getResources().openRawResource(R.raw.no_time);
             noTimeGif = Movie.decodeStream(is);
@@ -101,23 +120,36 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
         // Cargar la imagen estática de muerte (calavera)
         frogDeathBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.frogger_death3);
 
+        // Cargar la imagen sad_frog para la confirmación de salida
         sadFrogBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.sad_frog);
 
-        // Cargar la animación frogger_death.xml (AnimationDrawable)
+        // Cargar la animación de muerte desde frogger_death.xml
         froggerDeathAnim = (AnimationDrawable)
                 ResourcesCompat.getDrawable(getResources(), R.drawable.frogger_death, null);
         if (froggerDeathAnim != null) {
             froggerDeathAnim.setOneShot(true);
+            // Calcular la duración total de la animación sumando la duración de cada frame
             for (int i = 0; i < froggerDeathAnim.getNumberOfFrames(); i++) {
                 froggerDeathAnimTotalDuration += froggerDeathAnim.getDuration(i);
             }
         }
     }
 
+    /**
+     * Establece el número de estrellas obtenidas al ganar el nivel.
+     *
+     * @param stars Número de estrellas.
+     */
     public void setVictoryStars(int stars) {
         this.victoryStars = stars;
     }
 
+    /**
+     * Configura el nivel actual del juego, carga el fondo y texturas específicas,
+     * y reproduce la música y efectos correspondientes.
+     *
+     * @param level Nivel actual.
+     */
     public void setLevel(int level) {
         currentLevel = level; // Guardamos el nivel actual
         int mapResource;
@@ -128,8 +160,7 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
                 gam.levelOneTheme(getContext());
                 gam.idleCroak(getContext());
                 gam.carHonks(getContext());
-
-                // Cargamos la textura de agua (nivel 1)
+                // Cargar textura de agua para nivel 1
                 waterBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.water);
                 sandBitmap = null;
                 spaceBitmap = null;
@@ -140,8 +171,7 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
                 gam.levelTwoTheme(getContext());
                 gam.idleCroak(getContext());
                 gam.carHonks(getContext());
-
-                // Cargamos la textura de arena (nivel 2)
+                // Cargar textura de arena para nivel 2
                 sandBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.sand);
                 waterBitmap = null;
                 spaceBitmap = null;
@@ -152,32 +182,42 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
                 gam.levelThreeTheme(getContext());
                 gam.idleCroak(getContext());
                 gam.carHonks(getContext());
-
-                // Cargamos la textura de espacio (nivel 3)
+                // Cargar textura de espacio para nivel 3
                 spaceBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.space);
                 waterBitmap = null;
                 sandBitmap = null;
                 break;
 
             default:
-                // Por defecto, tratamos como si fuera nivel 1
+                // Por defecto, tratar como nivel 1
                 mapResource = R.drawable.map_level1;
                 gam.levelOneTheme(getContext());
                 gam.idleCroak(getContext());
                 gam.carHonks(getContext());
-
                 waterBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.water);
                 sandBitmap = null;
                 spaceBitmap = null;
         }
 
+        // Cargar el fondo del mapa según el nivel
         background = BitmapFactory.decodeResource(getResources(), mapResource);
     }
 
+    /**
+     * Asocia el {@code GameEngine} con esta vista para delegar la actualización y el renderizado.
+     *
+     * @param engine Instancia de {@link GameEngine}.
+     */
     public void setGameEngine(GameEngine engine) {
         this.gameEngine = engine;
     }
 
+    /**
+     * Callback invocado cuando la superficie de dibujo se crea.
+     * Configura las posiciones iniciales y arranca el hilo del juego.
+     *
+     * @param holder SurfaceHolder asociado a esta vista.
+     */
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
         if (!positionsConfigured && gameEngine != null) {
@@ -194,6 +234,12 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) { }
 
+    /**
+     * Callback invocado cuando la superficie de dibujo se destruye.
+     * Detiene el hilo del juego de forma segura.
+     *
+     * @param holder SurfaceHolder asociado a esta vista.
+     */
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {
         boolean retry = true;
@@ -208,6 +254,12 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
         }
     }
 
+    /**
+     * Configura las posiciones iniciales del {@code GameEngine} basándose en el tamaño del canvas.
+     *
+     * @param width  Ancho del canvas.
+     * @param height Alto del canvas.
+     */
     private void configurePositions(int width, int height) {
         if (gameEngine == null) return;
         int bottomOffset = 300;
@@ -216,27 +268,23 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
     }
 
     /**
-     * Update del SurfaceView. Aquí:
-     * - Llamamos a gameEngine.update() si no está en pausa.
-     * - Movemos los offsets de agua/arena/espacio solo si no está en pausa ni acabado el juego.
+     * Actualiza la lógica del juego y los offsets de scroll de las texturas (agua, arena, espacio),
+     * siempre que el juego no esté en pausa ni finalizado.
      */
     public void update() {
-        // 1) Actualizar lógica del juego
+        // 1) Actualizar la lógica del GameEngine
         if (gameEngine != null) {
-            // Si el juego no está en pausa, actualizamos
             if (!gameEngine.isPaused()) {
                 gameEngine.update();
             }
-
-            // Si el juego ha terminado (victoria o derrota), no movemos más el scroll
+            // Si el juego ha finalizado, no se actualiza el scroll
             if (gameEngine.isGameWon() || gameEngine.isGameOver()) {
                 return;
             }
         }
 
-        // 2) Si el juego no está en pausa, actualizamos offsets
+        // 2) Actualizar los offsets para el scroll manual de texturas, solo si no está en pausa
         if (gameEngine != null && gameEngine.isPaused()) {
-            // Si está en pausa, no movemos nada
             return;
         }
 
@@ -262,6 +310,12 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
         }
     }
 
+    /**
+     * Dibuja todos los elementos del juego en el canvas, incluyendo fondo, scroll de texturas,
+     * elementos del GameEngine, barra de tiempo y ventanas finales (victoria/derrota y confirmación de salida).
+     *
+     * @param canvas Canvas sobre el que se dibuja el juego.
+     */
     @Override
     public void draw(Canvas canvas) {
         super.draw(canvas);
@@ -273,12 +327,12 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
         int mapHeight = canvasHeight - bottomOffset;
         Rect dstRect = new Rect(0, 0, canvasWidth, mapHeight);
 
-        // Fondo del juego
+        // Dibujar el fondo del juego
         if (background != null) {
             canvas.drawBitmap(background, null, dstRect, null);
         }
 
-        // --- Nivel 1: Agua scrolleando ---
+        // --- Scroll manual para nivel 1: Agua ---
         if (currentLevel == 1 && waterBitmap != null) {
             int waterTop = (int) (0.08f * mapHeight);
             int waterBottom = (int) (0.46f * mapHeight);
@@ -296,7 +350,7 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
             }
         }
 
-        // --- Nivel 2: Arena scrolleando ---
+        // --- Scroll manual para nivel 2: Arena ---
         if (currentLevel == 2 && sandBitmap != null) {
             int sandTop = (int) (0.08f * mapHeight);
             int sandBottom = (int) (0.46f * mapHeight);
@@ -314,7 +368,7 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
             }
         }
 
-        // --- Nivel 3: Espacio scrolleando ---
+        // --- Scroll manual para nivel 3: Espacio ---
         if (currentLevel == 3 && spaceBitmap != null) {
             int spaceTop = (int) (0.08f * mapHeight);
             int spaceBottom = (int) (0.46f * mapHeight);
@@ -332,11 +386,11 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
             }
         }
 
-        // Lógica del GameEngine (rana, obstáculos, etc.)
+        // Dibujar elementos del GameEngine (rana, obstáculos, vidas, etc.)
         if (gameEngine != null) {
             gameEngine.draw(canvas);
 
-            // Barra de tiempo
+            // Dibujar la barra de tiempo si el juego no está en pausa
             if (!gameEngine.isPaused()) {
                 float timeRatio = gameEngine.getTimeRatio();
                 int barHeight = 20;
@@ -349,9 +403,9 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
             }
         }
 
-        // --- Ventana final (ganar/perder) ---
+        // --- Ventana final (victoria o derrota) ---
         if (gameEngine != null && (gameEngine.isGameWon() || gameEngine.isGameOver())) {
-            // Fondo overlay
+            // Dibujar overlay semitransparente
             Paint overlayPaint = new Paint();
             overlayPaint.setColor(Color.argb(200, 0, 0, 0));
             canvas.drawRect(0, 0, canvasWidth, canvasHeight, overlayPaint);
@@ -363,19 +417,19 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
             int top = (canvasHeight - windowHeight) / 2;
             RectF windowRect = new RectF(left, top, left + windowWidth, top + windowHeight);
 
-            // Fondo negro
+            // Fondo negro para la ventana
             Paint windowPaint = new Paint();
             windowPaint.setColor(Color.BLACK);
             canvas.drawRect(windowRect, windowPaint);
 
-            // Borde verde
+            // Borde verde para la ventana
             Paint borderPaint = new Paint();
             borderPaint.setColor(Color.GREEN);
             borderPaint.setStyle(Paint.Style.STROKE);
             borderPaint.setStrokeWidth(8);
             canvas.drawRect(windowRect, borderPaint);
 
-            // Texto
+            // Configurar el texto del mensaje final
             Paint textPaint = new Paint();
             textPaint.setColor(Color.GREEN);
             textPaint.setAntiAlias(true);
@@ -402,7 +456,7 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
             float textY = top + (windowHeight * 0.25f) - ((fm.ascent + fm.descent) / 2f);
             canvas.drawText(mainMessage, textX, textY, textPaint);
 
-            // (A) Victoria => estrellas
+            // Mostrar estrellas de victoria si se ganó
             if (isVictory && victoryStars > 0 && starBitmap != null) {
                 int starSize = (int) (windowWidth * 0.1f);
                 int starSpacing = starSize / 2;
@@ -419,14 +473,14 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
                     canvas.drawBitmap(starBitmap, null, starRect, null);
                 }
             }
-            // (B) Derrota
+            // Mostrar animaciones para derrota
             else if (!isVictory) {
                 float imageSize = windowWidth * 0.3f;
                 float imageX = left + (windowWidth - imageSize) / 2f;
                 float imageY = top + (windowHeight * 0.35f);
                 RectF imageRect = new RectF(imageX, imageY, imageX + imageSize, imageY + imageSize);
 
-                // (B1) Derrota por tiempo => reproducir no_timeGif
+                // Derrota por tiempo: reproducir el GIF "no_time"
                 if (isTimeOut && noTimeGif != null) {
                     if (!noTimeGifStarted) {
                         noTimeGifStartTime = System.currentTimeMillis();
@@ -434,20 +488,19 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
                     }
                     long now = System.currentTimeMillis();
                     int relTime = (int) ((now - noTimeGifStartTime) % noTimeGif.duration());
-
                     noTimeGif.setTime(relTime);
 
                     canvas.save();
                     canvas.translate(imageX, imageY);
 
-                    float scaleX = imageSize / noTimeGif.width();
-                    float scaleY = imageSize / noTimeGif.height();
+                    float scaleX = imageSize / (float) noTimeGif.width();
+                    float scaleY = imageSize / (float) noTimeGif.height();
                     canvas.scale(scaleX, scaleY);
 
                     noTimeGif.draw(canvas, 0, 0);
                     canvas.restore();
                 }
-                // (B2) Derrota por vidas => animación de froggerDeathAnim + calavera
+                // Derrota por vidas: reproducir animación de muerte o mostrar imagen estática
                 else if (!isTimeOut) {
                     if (!froggerDeathAnimFinished && froggerDeathAnim != null) {
                         if (!froggerDeathAnimStarted) {
@@ -474,7 +527,7 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
                 }
             }
 
-            // Botones finales (REINTENTAR / MENÚ)
+            // Dibujar botones de la ventana final: REINTENTAR y MENÚ
             float buttonWidth = windowWidth * 0.4f;
             float buttonHeight = 80;
             float spaceBetween = windowWidth * 0.05f;
@@ -495,15 +548,14 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
             drawRetroButton(canvas, menuButtonRect, "MENÚ");
         }
 
-        // --- Ventana de confirmación de salida (si se ha pedido) ---
-// --- Ventana de confirmación de salida (si se ha pedido) ---
+        // --- Ventana de confirmación de salida ---
         if (showExitConfirmWindow) {
-            // Fondo overlay
+            // Dibujar overlay semitransparente
             Paint overlayPaint = new Paint();
             overlayPaint.setColor(Color.argb(200, 0, 0, 0));
             canvas.drawRect(0, 0, canvasWidth, canvasHeight, overlayPaint);
 
-            // Ventana centrada
+            // Definir ventana centrada
             int windowWidth = (int) (canvasWidth * 0.75f);
             int windowHeight = (int) (canvasHeight * 0.35f);
             int left = (canvasWidth - windowWidth) / 2;
@@ -522,7 +574,7 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
             borderPaint.setStrokeWidth(8);
             canvas.drawRect(windowRect, borderPaint);
 
-            // Texto
+            // Texto de confirmación
             Paint textPaint = new Paint();
             textPaint.setColor(Color.GREEN);
             textPaint.setAntiAlias(true);
@@ -531,40 +583,38 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
             textPaint.setTextAlign(Paint.Align.CENTER);
 
             String confirmMessage = "¿Salir al Menú?\nPerderás el \nprogreso actual.\n";
-            float textX = canvasWidth / 2f;    // Centramos en X
-            float lineSpacing = 40f;          // Espaciado entre líneas
-            float currentY = top + (windowHeight * 0.15f); // Texto un poco más arriba
+            float textX = canvasWidth / 2f;
+            float lineSpacing = 40f;
+            float currentY = top + (windowHeight * 0.15f);
 
-            // Dividimos en líneas y las dibujamos
+            // Dibujar cada línea del mensaje
             String[] lines = confirmMessage.split("\n");
             for (String line : lines) {
                 canvas.drawText(line, textX, currentY, textPaint);
                 currentY += lineSpacing;
             }
 
-            // DIBUJAR sad_frog centrada debajo del texto
+            // Dibujar imagen sad_frog centrada debajo del texto
             if (sadFrogBitmap != null) {
-                float frogSize = windowWidth * 0.25f; // Ajusta el tamaño a tu gusto
-                float frogX = (canvasWidth / 2f) - (frogSize / 2f); // Centrado horizontal
-                float frogY = currentY + 10; // Un poco debajo del texto
+                float frogSize = windowWidth * 0.25f;
+                float frogX = (canvasWidth / 2f) - (frogSize / 2f);
+                float frogY = currentY + 10;
                 RectF frogRect = new RectF(frogX, frogY, frogX + frogSize, frogY + frogSize);
                 canvas.drawBitmap(sadFrogBitmap, null, frogRect, null);
-
-                // Actualizamos currentY para que los botones queden más abajo si hace falta
                 currentY = frogY + frogSize + 20;
             }
 
-            // Botones (Sí/No)
+            // Dibujar botones "SÍ" y "NO"
             float btnW = windowWidth * 0.3f;
             float btnH = 80;
-            float spaceBetween = windowWidth * 0.1f;
+            float btnSpace = windowWidth * 0.1f;
             float marginBottom = 30;
-            float buttonTop = top + windowHeight - btnH - marginBottom; // Ajuste para situarlos al final
+            float buttonTop = top + windowHeight - btnH - marginBottom;
 
-            float yesLeft = (canvasWidth / 2f) - btnW - (spaceBetween / 2f);
+            float yesLeft = (canvasWidth / 2f) - btnW - (btnSpace / 2f);
             exitYesRect = new RectF(yesLeft, buttonTop, yesLeft + btnW, buttonTop + btnH);
 
-            float noLeft = (canvasWidth / 2f) + (spaceBetween / 2f);
+            float noLeft = (canvasWidth / 2f) + (btnSpace / 2f);
             exitNoRect = new RectF(noLeft, buttonTop, noLeft + btnW, buttonTop + btnH);
 
             drawRetroButton(canvas, exitYesRect, "SÍ");
@@ -572,6 +622,13 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
         }
     }
 
+    /**
+     * Dibuja un botón con estilo retro dentro del rectángulo especificado y con el texto dado.
+     *
+     * @param canvas Canvas en el que se dibuja.
+     * @param rect   Rectángulo que define la posición y tamaño del botón.
+     * @param text   Texto a mostrar en el botón.
+     */
     private void drawRetroButton(Canvas canvas, RectF rect, String text) {
         Paint buttonPaint = new Paint();
         buttonPaint.setColor(Color.BLACK);
@@ -596,16 +653,23 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
         canvas.drawText(text, centerX, centerY, textPaint);
     }
 
+    /**
+     * Maneja los eventos táctiles para la interacción del usuario.
+     * Detecta toques en los botones de la ventana final o en la ventana de confirmación de salida.
+     *
+     * @param event Evento de toque.
+     * @return {@code true} si el evento fue consumido, {@code false} en caso contrario.
+     */
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
             float touchX = event.getX();
             float touchY = event.getY();
 
-            // 1) Si estamos mostrando la ventana de confirmación de salida
+            // 1) Si se muestra la ventana de confirmación de salida
             if (showExitConfirmWindow) {
                 if (exitYesRect != null && exitYesRect.contains(touchX, touchY)) {
-                    // "SÍ": Volvemos a MainActivity
+                    // Botón "SÍ": Regresar a MainActivity
                     Activity activity = (Activity) getContext();
                     Intent intent = new Intent(activity, MainActivity.class);
                     activity.startActivity(intent);
@@ -613,27 +677,24 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
                     return true;
                 }
                 if (exitNoRect != null && exitNoRect.contains(touchX, touchY)) {
-                    // "NO": Ocultamos la ventana y reanudamos
+                    // Botón "NO": Ocultar la ventana de confirmación y reanudar el juego
                     showExitConfirmWindow = false;
-                    // Quitar la pausa en GameEngine
                     if (gameEngine != null) {
                         gameEngine.setPaused(false);
                     }
                     return true;
                 }
-                // Si clic fuera de los botones, no hacemos nada
                 return true;
             }
 
-            // 2) Si el juego está en ventana final (ganar/perder)
+            // 2) Si el juego está en ventana final (victoria o derrota)
             if (gameEngine != null && (gameEngine.isGameWon() || gameEngine.isGameOver())) {
                 if (retryButtonRect != null && retryButtonRect.contains(touchX, touchY)) {
                     Activity activity = (Activity) getContext();
-                    // Reinicia la Activity para volver a jugar
+                    // Reiniciar la Activity para volver a jugar
                     activity.recreate();
                     return true;
                 }
-
                 if (menuButtonRect != null && menuButtonRect.contains(touchX, touchY)) {
                     Activity activity = (Activity) getContext();
                     Intent intent = new Intent(activity, MainActivity.class);
@@ -647,8 +708,8 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
     }
 
     /**
-     * Método público para activar la ventana de confirmación.
-     * Se pausa el juego en el GameEngine.
+     * Activa la ventana de confirmación para salir al menú.
+     * Además, pausa el juego en el GameEngine.
      */
     public void requestExitConfirmation() {
         showExitConfirmWindow = true;
@@ -657,6 +718,11 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
         }
     }
 
+    // --- Métodos de control de movimiento de la rana ---
+
+    /**
+     * Mueve la rana hacia la izquierda y reproduce un efecto de movimiento.
+     */
     public void movePlayerLeft() {
         if (gameEngine != null) {
             gameEngine.movePlayerLeft();
@@ -664,6 +730,9 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
         }
     }
 
+    /**
+     * Mueve la rana hacia arriba y reproduce un efecto de movimiento.
+     */
     public void movePlayerUp() {
         if (gameEngine != null) {
             gameEngine.movePlayerUp();
@@ -671,6 +740,9 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
         }
     }
 
+    /**
+     * Mueve la rana hacia la derecha y reproduce un efecto de movimiento.
+     */
     public void movePlayerRight() {
         if (gameEngine != null) {
             gameEngine.movePlayerRight();
@@ -678,6 +750,9 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
         }
     }
 
+    /**
+     * Mueve la rana hacia abajo y reproduce un efecto de movimiento.
+     */
     public void movePlayerDown() {
         if (gameEngine != null) {
             gameEngine.movePlayerDown();
