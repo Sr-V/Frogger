@@ -1,7 +1,10 @@
 package edu.pmdm.frogger.activities;
 
 import android.content.Intent;
+import android.graphics.ImageDecoder;
+import android.graphics.drawable.AnimatedImageDrawable;
 import android.graphics.drawable.Drawable;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -21,6 +24,7 @@ import androidx.core.view.WindowInsetsCompat;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.QuerySnapshot;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -83,6 +87,33 @@ public class LevelSelectionActivity extends AppCompatActivity {
         btnBackToMain.setOnClickListener(v -> finish());
     }
 
+    /**
+     * Método auxiliar para mostrar el GIF animado de lock (API 28+).
+     * En versiones anteriores, se muestra lock estático como fallback.
+     */
+    private void showLockGif(ImageView imageView) {
+        if (Build.VERSION.SDK_INT >= 28) {
+            try {
+                // En vez de usar InputStream, usa la sobrecarga con (Resources, int)
+                ImageDecoder.Source source = ImageDecoder.createSource(getResources(), R.raw.lock);
+                Drawable drawable = ImageDecoder.decodeDrawable(source);
+
+                if (drawable instanceof AnimatedImageDrawable) {
+                    ((AnimatedImageDrawable) drawable).start();
+                }
+                imageView.setImageDrawable(drawable);
+
+            } catch (IOException e) {
+                e.printStackTrace();
+                // Fallback a lock estático si falla
+                imageView.setImageResource(R.drawable.lock);
+            }
+        } else {
+            // Fallback para API < 28
+            imageView.setImageResource(R.drawable.lock);
+        }
+    }
+
     private void getUserCurrentLevel() {
         String uid = authManager.getCurrentUser().getUid();
         firestoreManager.getUser(uid, task -> {
@@ -107,11 +138,8 @@ public class LevelSelectionActivity extends AppCompatActivity {
             if (task.isSuccessful()) {
                 QuerySnapshot levelQuery = task.getResult();
                 if (levelQuery != null) {
-                    // Guardamos la lista de niveles
-                    // (cada doc tiene un ID = "1", "2", "3", etc. y un campo "name")
                     String uid = authManager.getCurrentUser().getUid();
 
-                    // Ahora consultamos la subcolección "maps" del usuario para obtener las estrellas
                     firestoreManager.getUserMaps(uid, mapsTask -> {
                         if (mapsTask.isSuccessful()) {
                             QuerySnapshot mapsSnapshot = mapsTask.getResult();
@@ -128,9 +156,8 @@ public class LevelSelectionActivity extends AppCompatActivity {
 
                             // Ahora creamos el CardView para cada nivel
                             for (DocumentSnapshot doc : levelQuery.getDocuments()) {
-                                String levelId = doc.getId();         // p. ej. "1"
-                                String levelName = doc.getString("name"); // p. ej. "Talavera..."
-                                // Obtenemos cuántas estrellas tiene el usuario en este nivel
+                                String levelId = doc.getId();  // "1", "2", "3", ...
+                                String levelName = doc.getString("name");
                                 int starCount = userStarsMap.getOrDefault(levelId, 0);
 
                                 createLevelButton(levelId, levelName, starCount);
@@ -157,51 +184,46 @@ public class LevelSelectionActivity extends AppCompatActivity {
         ImageView ivLockOrStars = levelView.findViewById(R.id.ivLockOrStars);
         TextView tvStarsCount = levelView.findViewById(R.id.tvStarsCount);
 
-        // Rellenamos datos
         int levelNumber = Integer.parseInt(levelId);
         tvLevelNumber.setText("Nivel " + levelId);
         tvLevelName.setText(levelName);
 
         // Caso especial "Próximamente"
         if (levelName != null && levelName.equalsIgnoreCase("Proximamente")) {
-            // Mostramos el candado y ocultamos estrellas
             ivLockOrStars.setVisibility(View.VISIBLE);
-            ivLockOrStars.setImageResource(R.drawable.lock);
-            tvStarsCount.setVisibility(View.GONE);
+            showLockGif(ivLockOrStars);
 
+            tvStarsCount.setVisibility(View.GONE);
             levelView.setOnClickListener(v -> overlayView.showProximamenteWindow());
             levelView.setAlpha(1.0f);
 
         } else {
-            // Si el nivel está bloqueado (levelNumber > userCurrentLevel)
+            // Si el nivel está bloqueado
             if (levelNumber > userCurrentLevel) {
                 ivLockOrStars.setVisibility(View.VISIBLE);
-                ivLockOrStars.setImageResource(R.drawable.lock);
-                tvStarsCount.setVisibility(View.GONE);
+                showLockGif(ivLockOrStars);
 
+                tvStarsCount.setVisibility(View.GONE);
                 levelView.setAlpha(0.5f);
                 levelView.setOnClickListener(null);
 
             } else {
-                // Nivel desbloqueado: ocultamos el candado y mostramos las estrellas
+                // Nivel desbloqueado: ocultamos candado y mostramos estrellas
                 ivLockOrStars.setVisibility(View.GONE);
                 tvStarsCount.setVisibility(View.VISIBLE);
 
-                // Ajustamos el drawable de la estrella para que sea 32dp x 32dp
                 Drawable starDrawable = ContextCompat.getDrawable(this, R.drawable.star);
                 if (starDrawable != null) {
-                    int starSize = (int) (32 * getResources().getDisplayMetrics().density); // 32dp
+                    int starSize = (int) (32 * getResources().getDisplayMetrics().density);
                     starDrawable.setBounds(0, 0, starSize, starSize);
                     tvStarsCount.setCompoundDrawables(starDrawable, null, null, null);
                 }
 
-                // Mostramos la cantidad real de estrellas
                 tvStarsCount.setText("x" + starCount);
                 tvStarsCount.setCompoundDrawablePadding(8);
 
                 levelView.setAlpha(1.0f);
                 levelView.setOnClickListener(v -> {
-                    // Ir al juego
                     Intent intent = new Intent(LevelSelectionActivity.this, GameActivity.class);
                     intent.putExtra("level", levelNumber);
                     intent.putExtra("userCurrentLevel", userCurrentLevel);

@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/main"
@@ -9,7 +8,6 @@
     android:background="#000000"
     tools:context=".activities.SettingsActivity">
 
-    <!-- Fondo con imagen -->
     <ImageView
         android:id="@+id/imageView6"
         android:layout_width="match_parent"
@@ -22,7 +20,6 @@
         app:layout_constraintTop_toTopOf="parent"
         app:srcCompat="@drawable/music_wallpaper" />
 
-    <!-- Capa semi-transparente para mejorar la legibilidad -->
     <View
         android:id="@+id/overlay"
         android:layout_width="0dp"
@@ -31,97 +28,115 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"/>
+        app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Título "Music Volume" -->
     <TextView
-        android:id="@+id/textViewMusic"
+        android:id="@+id/textViewTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="32dp"
         android:fontFamily="@font/press_start_2p"
-        android:text="Music Volume"
-        android:textColor="#00FF0C"
-        android:textSize="16sp"
         android:shadowColor="#000000"
         android:shadowDx="2"
         android:shadowDy="2"
         android:shadowRadius="3"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:gravity="center"
-        />
+        android:text="SETTINGS"
+        android:textColor="#00FF0C"
+        android:textSize="22sp"
+        android:textStyle="bold"
 
-    <!-- SeekBar para el volumen de la música -->
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <TextView
+        android:id="@+id/textViewMusic"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:fontFamily="@font/press_start_2p"
+        android:shadowColor="#000000"
+        android:shadowDx="2"
+        android:shadowDy="2"
+        android:shadowRadius="3"
+        android:text="Music Volume"
+        android:textColor="#00FF0C"
+        android:textSize="16sp"
+        app:layout_constraintBottom_toTopOf="@id/seekBarMusic"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/textViewTitle"
+        app:layout_constraintVertical_bias="0.5"
+        app:layout_constraintVertical_chainStyle="packed" />
+
     <SeekBar
         android:id="@+id/seekBarMusic"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
         android:layout_marginStart="24dp"
+        android:layout_marginTop="8dp"
         android:layout_marginEnd="24dp"
         android:max="100"
         android:progressTint="#00FF09"
-        app:layout_constraintTop_toBottomOf="@id/textViewMusic"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Título "Sound Effects Volume" -->
+        app:layout_constraintBottom_toTopOf="@id/textViewSound"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/textViewMusic" />
+
     <TextView
         android:id="@+id/textViewSound"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
         android:fontFamily="@font/press_start_2p"
-        android:text="Sound Effects Volume"
-        android:textColor="#00FF0C"
-        android:textSize="16sp"
         android:shadowColor="#000000"
         android:shadowDx="2"
         android:shadowDy="2"
         android:shadowRadius="3"
-        app:layout_constraintTop_toBottomOf="@id/seekBarMusic"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:gravity="center"
-        />
+        android:text="Sound Effects Volume"
+        android:textColor="#00FF0C"
+        android:textSize="16sp"
 
-    <!-- SeekBar para el volumen de los efectos -->
+        app:layout_constraintBottom_toTopOf="@id/seekBarSound"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/seekBarMusic" />
+
     <SeekBar
         android:id="@+id/seekBarSound"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
         android:layout_marginStart="24dp"
+        android:layout_marginTop="8dp"
         android:layout_marginEnd="24dp"
         android:max="100"
         android:progressTint="#00FF09"
-        app:layout_constraintTop_toBottomOf="@id/textViewSound"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Texto "Try the sound!" -->
+        app:layout_constraintBottom_toTopOf="@id/textViewSound2"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/textViewSound" />
+
     <TextView
         android:id="@+id/textViewSound2"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="32dp"
         android:fontFamily="@font/press_start_2p"
-        android:text="Try the sound!"
-        android:textColor="#00FF0C"
-        android:textSize="16sp"
         android:shadowColor="#000000"
         android:shadowDx="2"
         android:shadowDy="2"
         android:shadowRadius="3"
-        app:layout_constraintTop_toBottomOf="@id/seekBarSound"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:gravity="center"
-        />
+        android:text="Try the sound!"
+        android:textColor="#00FF0C"
+        android:textSize="16sp"
 
-    <!-- Botón/Imagen para probar sonido -->
+        app:layout_constraintBottom_toTopOf="@id/imageButton"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/seekBarSound" />
+
     <ImageButton
         android:id="@+id/imageButton"
         android:layout_width="64dp"
@@ -129,12 +144,13 @@
         android:layout_marginTop="16dp"
         android:background="@null"
         android:scaleType="fitCenter"
-        app:layout_constraintTop_toBottomOf="@id/textViewSound2"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:src="@drawable/audio_icon" />
+        android:src="@drawable/audio_icon"
 
-    <!-- Botón BACK -->
+        app:layout_constraintBottom_toTopOf="@id/btnBackToMain"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/textViewSound2" />
+
     <Button
         android:id="@+id/btnBackToMain"
         android:layout_width="wrap_content"
@@ -147,8 +163,9 @@
         android:textAllCaps="false"
         android:textColor="#00FF00"
         android:textSize="12sp"
+
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
