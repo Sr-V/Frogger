@@ -5,6 +5,9 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
@@ -19,9 +22,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import edu.pmdm.frogger.R;
-import edu.pmdm.frogger.utils.AlertsOverlayView;
 import edu.pmdm.frogger.firebase.FirebaseAuthManager;
 import edu.pmdm.frogger.firebase.FirestoreManager;
+import edu.pmdm.frogger.utils.AlertsOverlayView;
 import edu.pmdm.frogger.utils.GameAudioManager;
 
 public class MainActivity extends AppCompatActivity {
@@ -29,13 +32,19 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "FroggerMain";
     private FirebaseAuthManager authManager;
     private FirestoreManager firestoreManager;
+
     // Nivel y puntuación actuales del usuario
     private int currentLevel = 1;
     private int currentScore = 0; // ahora representa totalStars
+
+    // Para reproducir audio
     private GameAudioManager gam;
 
-    // Nuevo: referencia al OverlayView para ventanas retro
+    // Overlay para ventanas retro
     private AlertsOverlayView overlayView;
+
+    // Referencia al ProgressBar (para mostrar/hide mientras se cargan datos)
+    private ProgressBar progressBar;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,18 +67,11 @@ public class MainActivity extends AppCompatActivity {
         authManager = FirebaseAuthManager.getInstance(this);
         firestoreManager = FirestoreManager.getInstance();
 
-        // Inicialmente se oculta el contenido principal
-        findViewById(R.id.tvUserName).setVisibility(View.GONE);
-        findViewById(R.id.tvCurrentLevel).setVisibility(View.GONE);
-        findViewById(R.id.tvCurrentScore).setVisibility(View.GONE);
-        findViewById(R.id.playGame).setVisibility(View.GONE);
-        findViewById(R.id.levels).setVisibility(View.GONE);
-        findViewById(R.id.btnGoogleLogout).setVisibility(View.GONE);
-        findViewById(R.id.leaderboard).setVisibility(View.GONE);
-        findViewById(R.id.settings).setVisibility(View.GONE);
+        // Referencia al ProgressBar
+        progressBar = findViewById(R.id.progressBar);
 
         // Se muestra el ProgressBar mientras se cargan los datos
-        findViewById(R.id.progressBar).setVisibility(View.VISIBLE);
+        progressBar.setVisibility(View.VISIBLE);
 
         // OverlayView para ventanas retro
         overlayView = new AlertsOverlayView(this);
@@ -84,44 +86,6 @@ public class MainActivity extends AppCompatActivity {
 
         // Obtiene o crea los datos del usuario en Firestore
         getUserData();
-
-        // Listener para el botón de LOGOUT
-        findViewById(R.id.btnGoogleLogout).setOnClickListener(v -> {
-            signOut();
-            finish();
-        });
-
-        // Listener para el botón PLAY GAME:
-        // Si currentLevel es 4, mostramos la ventana retro "Niveles no disponibles"
-        findViewById(R.id.playGame).setOnClickListener(v -> {
-            if (currentLevel == 4) {
-                // Muestra la ventana retro en vez de AlertDialog
-                overlayView.showNoNewLevelsWindow();
-            } else {
-                gam.stopMainThemeSong();
-                Intent intent = new Intent(MainActivity.this, GameActivity.class);
-                intent.putExtra("level", currentLevel);
-                intent.putExtra("userCurrentLevel", currentLevel);
-                startActivity(intent);
-            }
-        });
-
-        // Listener para el botón LEVELS: envía a LevelSelectionActivity para la selección de niveles
-        findViewById(R.id.levels).setOnClickListener(v -> {
-            Intent intent = new Intent(MainActivity.this, LevelSelectionActivity.class);
-            startActivity(intent);
-        });
-
-        findViewById(R.id.settings).setOnClickListener(v ->{
-            Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
-            startActivity(intent);
-        });
-
-        findViewById(R.id.leaderboard).setOnClickListener(v ->{
-            Intent intent = new Intent(MainActivity.this, LeaderboardActivity.class);
-            startActivity(intent);
-        });
-
     }
 
     /**
@@ -141,7 +105,7 @@ public class MainActivity extends AppCompatActivity {
                     currentScore = (starsLong != null) ? starsLong.intValue() : 0;
                     updateUIWithUserData(displayName, currentLevel, currentScore);
                 } else {
-                    // Si el documento no existe, crea un nuevo documento con datos por defecto
+                    // Si el documento no existe, crea uno nuevo con datos por defecto
                     Map<String, Object> userData = new HashMap<>();
                     userData.put("displayName", authManager.getCurrentUser().getDisplayName());
                     userData.put("email", authManager.getCurrentUser().getEmail());
@@ -184,29 +148,125 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    /**
+     * Actualiza la UI con los datos del usuario (nombre, nivel, estrellas) y crea los ítems del menú.
+     */
     @SuppressLint("SetTextI18n")
     private void updateUIWithUserData(String displayName, int level, int score) {
-        TextView tvUserName = findViewById(R.id.tvUserName);
-        if (displayName != null) {
-            tvUserName.setText("Bienvenido " + displayName);
-        }
-        TextView tvCurrentLevel = findViewById(R.id.tvCurrentLevel);
-        tvCurrentLevel.setText("Nivel: " + level);
-        TextView tvCurrentScore = findViewById(R.id.tvCurrentScore);
-        tvCurrentScore.setText("Estrellas Totales: " + score);
+        // Ocultamos el ProgressBar
+        progressBar.setVisibility(View.GONE);
 
-        // Oculta el ProgressBar y muestra el contenido principal
-        findViewById(R.id.progressBar).setVisibility(View.GONE);
-        findViewById(R.id.tvUserName).setVisibility(View.VISIBLE);
-        findViewById(R.id.tvCurrentLevel).setVisibility(View.VISIBLE);
-        findViewById(R.id.tvCurrentScore).setVisibility(View.VISIBLE);
-        findViewById(R.id.playGame).setVisibility(View.VISIBLE);
-        findViewById(R.id.levels).setVisibility(View.VISIBLE);
-        findViewById(R.id.btnGoogleLogout).setVisibility(View.VISIBLE);
-        findViewById(R.id.leaderboard).setVisibility(View.VISIBLE);
-        findViewById(R.id.settings).setVisibility(View.VISIBLE);
+        // Creamos los ítems de la parte superior (usuario, nivel, estrellas)
+        setupTopInfo(displayName, level, score);
+
+        // Ahora creamos dinámicamente las tarjetas de menú (PLAY GAME, LEVELS, etc.)
+        setupMenuItems();
     }
 
+    /**
+     * Crea tres tarjetas (items) en la parte superior:
+     *  1) "Bienvenido X"
+     *  2) "Nivel: Y"
+     *  3) "Estrellas Totales: Z"
+     */
+    private void setupTopInfo(String displayName, int level, int score) {
+        LinearLayout linearLayoutTopInfo = findViewById(R.id.linearLayoutTopInfo);
+        linearLayoutTopInfo.removeAllViews();
+
+        // Definimos los textos de cada item
+        String[] topTexts = new String[]{
+                "Bienvenido " + displayName,
+                "Nivel: " + level,
+                "Estrellas Totales: " + score
+        };
+
+        // Inflamos un layout "main_top_item.xml" por cada uno
+        for (String text : topTexts) {
+            View topView = getLayoutInflater().inflate(R.layout.top_info_item, linearLayoutTopInfo, false);
+            TextView tv = topView.findViewById(R.id.tvTopInfo);
+            tv.setText(text);
+
+            linearLayoutTopInfo.addView(topView);
+        }
+    }
+
+    /**
+     * Crea la lista de opciones de menú como tarjetas y las añade a linearLayoutMenu.
+     */
+    private void setupMenuItems() {
+        LinearLayout linearLayoutMenu = findViewById(R.id.linearLayoutMenu);
+
+        // Definimos cada opción con su título, subtítulo, icono y acción
+        MenuOption[] menuOptions = new MenuOption[]{
+                new MenuOption("PLAY GAME", "Comienza la aventura", R.drawable.joystick, v -> {
+                    if (currentLevel == 4) {
+                        overlayView.showNoNewLevelsWindow();
+                    } else {
+                        gam.stopMainThemeSong();
+                        Intent intent = new Intent(MainActivity.this, GameActivity.class);
+                        intent.putExtra("level", currentLevel);
+                        intent.putExtra("userCurrentLevel", currentLevel);
+                        startActivity(intent);
+                    }
+                }),
+                new MenuOption("LEVELS", "Elige tu nivel", R.drawable.flag, v -> {
+                    Intent intent = new Intent(MainActivity.this, LevelSelectionActivity.class);
+                    startActivity(intent);
+                }),
+                new MenuOption("LEADERBOARD", "Ver clasificaciones", R.drawable.crown, v -> {
+                    Intent intent = new Intent(MainActivity.this, LeaderboardActivity.class);
+                    startActivity(intent);
+                }),
+                new MenuOption("SETTINGS", "Configura el juego", R.drawable.settings, v -> {
+                    Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
+                    startActivity(intent);
+                }),
+                new MenuOption("LOGOUT", "Salir de la cuenta", R.drawable.logout, v -> {
+                    signOut();
+                    finish();
+                })
+        };
+
+        // Inflamos un "main_menu_item" por cada opción
+        for (MenuOption option : menuOptions) {
+            View itemView = getLayoutInflater().inflate(R.layout.main_menu_item, linearLayoutMenu, false);
+
+            TextView tvTitle = itemView.findViewById(R.id.tvMenuTitle);
+            TextView tvSubtitle = itemView.findViewById(R.id.tvMenuSubtitle);
+            ImageView ivIcon = itemView.findViewById(R.id.ivMenuIcon);
+
+            tvTitle.setText(option.title);
+            tvSubtitle.setText(option.subtitle);
+            ivIcon.setImageResource(option.iconRes);
+
+            // Asignamos la acción de click a la tarjeta entera
+            itemView.setOnClickListener(option.onClick);
+
+            // Añadimos la vista al contenedor
+            linearLayoutMenu.addView(itemView);
+        }
+    }
+
+    /**
+     * Clase interna para representar cada opción del menú.
+     */
+    private static class MenuOption {
+        String title;
+        String subtitle;
+        int iconRes;
+        View.OnClickListener onClick;
+
+        MenuOption(String t, String sub, int icon, View.OnClickListener click) {
+            title = t;
+            subtitle = sub;
+            iconRes = icon;
+            onClick = click;
+        }
+    }
+
+    /**
+     * Cierra la sesión con Google y regresa a la pantalla de Login.
+     */
     private void signOut() {
         authManager.signOut(this, task -> {
             if (task.isSuccessful()) {
@@ -221,21 +281,21 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        Log.d("OnDestroy","Destruida");
+        Log.d("OnDestroy", "Destruida");
         gam.stopMainThemeSong();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        Log.d("OnPause","Pausada");
+        Log.d("OnPause", "Pausada");
         gam.stopMainThemeSong();
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-        Log.d("OnResume","Resumida");
+        Log.d("OnStart", "Iniciada");
         gam.mainThemeSong(this);
     }
 
