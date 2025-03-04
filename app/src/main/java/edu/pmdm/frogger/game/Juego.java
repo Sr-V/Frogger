@@ -23,7 +23,7 @@ public class Juego extends SurfaceView implements SurfaceHolder.Callback {
     private GameEngine gameEngine;
     private Bitmap background;
     private boolean positionsConfigured = false;
-    private GameAudioManager gam = GameAudioManager.getInstance();
+    private GameAudioManager gam = GameAudioManager.getInstance(getContext());
 
     // Usaremos un Movie para el GIF de "no_time":
     private Movie noTimeGif;
