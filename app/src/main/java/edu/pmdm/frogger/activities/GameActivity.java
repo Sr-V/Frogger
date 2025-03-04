@@ -1,11 +1,11 @@
 package edu.pmdm.frogger.activities;
 
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.widget.ImageButton;
-import androidx.appcompat.app.AlertDialog;
+
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.WindowCompat;
 
@@ -14,6 +14,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.HashMap;
 import java.util.Map;
+
 import edu.pmdm.frogger.R;
 import edu.pmdm.frogger.firebase.FirebaseAuthManager;
 import edu.pmdm.frogger.firebase.FirestoreManager;
@@ -29,7 +30,7 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
     private ImageButton btnLeft, btnUp, btnRight, btnDown;
     private int level;            // Nivel que se está jugando
     private int userCurrentLevel; // Nivel actual del usuario en Firebase
-    private GameAudioManager gam = GameAudioManager.getInstance();
+    private GameAudioManager gam = GameAudioManager.getInstance(this);
     private boolean paused = false;
 
     @Override
@@ -71,6 +72,13 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
         btnDown.setOnClickListener(v -> juegoView.movePlayerDown());
     }
 
+    @SuppressLint("MissingSuperCall")
+    @Override
+    public void onBackPressed() {
+        juegoView.requestExitConfirmation();
+        // No llamamos a super.onBackPressed().
+    }
+
     @Override
     public void onGameWon(boolean shouldIncrementLevel) {
         setButtonsEnabled(false);
@@ -89,16 +97,16 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
             estrellas = 1;
         }
 
+        // Informar al SurfaceView del número de estrellas
+        juegoView.setVictoryStars(estrellas);
+
         // Obtenemos el UID del usuario logueado
         String uid = FirebaseAuthManager.getInstance(this).getCurrentUser().getUid();
 
-        // 1) Primero, comprobamos cuántas estrellas tenía ya en este nivel
+        // 1) Comprobar y actualizar las estrellas en la subcolección "maps"
         FirestoreManager.getInstance()
                 .createOrUpdateUserMap(uid, String.valueOf(level), new HashMap<>())
-                // ↑ Si quieres asegurarte de que el documento exista, puedes crear uno vacío antes de leerlo.
-                //   Si ya tienes un método distinto, puedes omitirlo.
                 .addOnSuccessListener(aVoid -> {
-                    // Leer el documento del nivel en la subcolección "maps"
                     FirebaseFirestore.getInstance()
                             .collection("users")
                             .document(uid)
@@ -110,58 +118,57 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
                                 if (documentSnapshot.exists() && documentSnapshot.contains("stars")) {
                                     firebaseStars = documentSnapshot.getLong("stars").intValue();
                                 }
-
-                                // 2) Comparar y actualizar si es necesario
+                                // 2) Si se han obtenido más estrellas, se actualiza el documento
                                 if (estrellas > firebaseStars) {
                                     Map<String, Object> levelData = new HashMap<>();
                                     levelData.put("stars", estrellas);
-                                    // Puedes poner también "name" si quieres actualizar el nombre, p.ej.:
-                                    // levelData.put("name", "Talavera de la Reina");
-
                                     FirestoreManager.getInstance()
                                             .createOrUpdateUserMap(uid, String.valueOf(level), levelData)
-                                            .addOnSuccessListener(unused -> {
-                                                // Una vez actualizado, recalcular el total
-                                                recalcTotalStars(uid);
-                                            })
-                                            .addOnFailureListener(e -> {
-                                                // Manejar error si lo deseas
-                                                recalcTotalStars(uid);
-                                            });
+                                            .addOnSuccessListener(unused -> recalcTotalStars(uid))
+                                            .addOnFailureListener(e -> recalcTotalStars(uid));
                                 } else {
-                                    // Si no es mayor, de todas formas recalculamos el total
                                     recalcTotalStars(uid);
                                 }
                             })
-                            .addOnFailureListener(e -> {
-                                // Si hubo error al obtener el documento, igualmente podemos recalcular
-                                recalcTotalStars(uid);
-                            });
+                            .addOnFailureListener(e -> recalcTotalStars(uid));
                 });
 
-        // 3) Si el usuario está jugando justo en su currentLevel, incrementamos
+        // 3) Si el usuario juega en su currentLevel, se incrementa el nivel en Firebase
         if (userCurrentLevel == level) {
             int newLevel = userCurrentLevel + 1;
             Map<String, Object> updates = new HashMap<>();
             updates.put("currentLevel", newLevel);
-
             FirestoreManager.getInstance().updateUserFields(uid, updates)
-                    .addOnSuccessListener(aVoid -> {
-                        userCurrentLevel = newLevel;
-                        showVictoryAlert(true, estrellas);
-                    })
+                    .addOnSuccessListener(aVoid -> userCurrentLevel = newLevel)
                     .addOnFailureListener(e -> {
-                        showVictoryAlert(false, estrellas);
+                        // En caso de error, se continúa mostrando la victoria a través de Juego.draw()
                     });
-        } else {
-            // Si no se incrementa el nivel, simplemente mostramos la alerta
-            showVictoryAlert(false, estrellas);
         }
+        // La ventana de victoria se dibuja en Juego.draw()
+    }
+
+    @Override
+    public void onGameLost() {
+        runOnUiThread(() -> {
+            setButtonsEnabled(false);
+            // La ventana de derrota se dibuja en Juego.draw()
+        });
+    }
+
+    @Override
+    public void onButtonsBlocked(boolean blocked) {
+        runOnUiThread(() -> setButtonsEnabled(!blocked));
+    }
+
+    private void setButtonsEnabled(boolean enabled) {
+        btnLeft.setEnabled(enabled);
+        btnUp.setEnabled(enabled);
+        btnRight.setEnabled(enabled);
+        btnDown.setEnabled(enabled);
     }
 
     /**
-     * Método auxiliar para recalcular el total de estrellas de TODOS los mapas de un usuario.
-     * Al final, se actualiza el campo totalStars en el documento principal del usuario.
+     * Recalcula el total de estrellas de TODOS los mapas del usuario y actualiza el campo totalStars.
      */
     private void recalcTotalStars(String uid) {
         FirebaseFirestore.getInstance()
@@ -172,7 +179,7 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
                 .addOnSuccessListener(querySnapshot -> {
                     int totalStars = 0;
                     if (!querySnapshot.isEmpty()) {
-                        // Recorremos cada documento (cada nivel) y sumamos sus estrellas
+                        // Sumamos las estrellas de cada nivel
                         for (DocumentSnapshot doc : querySnapshot.getDocuments()) {
                             if (doc.contains("stars")) {
                                 totalStars += doc.getLong("stars").intValue();
@@ -182,111 +189,30 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
                     // Actualizar el campo totalStars en el documento principal del usuario
                     Map<String, Object> updates = new HashMap<>();
                     updates.put("totalStars", totalStars);
-                    int finalTotalStars = totalStars;
                     FirestoreManager.getInstance().updateUserFields(uid, updates)
                             .addOnSuccessListener(aVoid -> {
-                                // Si quieres hacer algo después de actualizar totalStars, lo pones aquí
-                                Log.d("FIRESTORE", "totalStars actualizado a: " + finalTotalStars);
+                                // totalStars actualizado
                             })
                             .addOnFailureListener(e -> {
-                                // Manejar error
-                                Log.e("FIRESTORE", "Error al actualizar totalStars", e);
+                                // Error al actualizar totalStars
                             });
                 })
                 .addOnFailureListener(e -> {
-                    Log.e("FIRESTORE", "Error al leer subcolección maps", e);
+                    // Error al leer la subcolección "maps"
                 });
-    }
-
-    @Override
-    public void onGameLost() {
-        runOnUiThread(() -> {
-            setButtonsEnabled(false);
-            showDefeatAlert();
-        });
-    }
-
-    @Override
-    public void onButtonsBlocked(boolean blocked) {
-        runOnUiThread(() -> setButtonsEnabled(!blocked));
-    }
-
-    private void showVictoryAlert(boolean levelIncremented, int estrellas) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setCancelable(false);
-        String msg = "¡Has ganado!\nEstrellas obtenidas: " + estrellas;
-        if (levelIncremented) {
-            msg += "\n¡Se ha desbloqueado el siguiente nivel!";
-        }
-        if(level == 1){
-            gam.stopLevelOneTheme();
-            gam.stopIdleSound();
-        }
-        if(level == 2){
-            gam.stopLevelTwoTheme();
-            gam.stopIdleSound();
-        }
-        if(level == 3){
-            gam.stopLevelThreeTheme();
-            gam.stopIdleSound();
-        }
-        builder.setTitle("Victoria")
-                .setMessage(msg)
-                .setPositiveButton("Reintentar", (dialog, which) -> recreate())
-                .setNegativeButton("Menú Principal", (dialog, which) -> {
-                    startActivity(new Intent(this, MainActivity.class));
-                    finish();
-                })
-                .show();
-    }
-
-    private void showDefeatAlert() {
-        String message;
-        gam.stopIdleSound();
-        if(level == 1){
-            gam.stopLevelOneTheme();
-        }
-        if(level == 2){
-            gam.stopLevelTwoTheme();
-        }
-        if(level == 3){
-            gam.stopLevelThreeTheme();
-        }
-        if (gameEngine.isLostByTime()) {
-            message = "¡Tiempo agotado!\nNo lograste completar el nivel a tiempo.";
-        } else {
-            message = "Te has quedado sin vidas. ¿Deseas reintentar o volver al menú?";
-        }
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setCancelable(false);
-        builder.setTitle("Derrota")
-                .setMessage(message)
-                .setPositiveButton("Reintentar", (dialog, which) -> recreate())
-                .setNegativeButton("Menú Principal", (dialog, which) -> {
-                    startActivity(new Intent(this, MainActivity.class));
-                    finish();
-                })
-                .show();
-    }
-
-    private void setButtonsEnabled(boolean enabled) {
-        btnLeft.setEnabled(enabled);
-        btnUp.setEnabled(enabled);
-        btnRight.setEnabled(enabled);
-        btnDown.setEnabled(enabled);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
         gam.stopIdleSound();
-        if(level == 1){
+        if (level == 1) {
             gam.stopLevelOneTheme();
         }
-        if(level == 2){
+        if (level == 2) {
             gam.stopLevelTwoTheme();
         }
-        if(level == 3){
+        if (level == 3) {
             gam.stopLevelThreeTheme();
         }
     }
@@ -295,13 +221,13 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
     protected void onPause() {
         super.onPause();
         gam.stopIdleSound();
-        if(level == 1){
+        if (level == 1) {
             gam.stopLevelOneTheme();
         }
-        if(level == 2){
+        if (level == 2) {
             gam.stopLevelTwoTheme();
         }
-        if(level == 3){
+        if (level == 3) {
             gam.stopLevelThreeTheme();
         }
         paused = true;
@@ -310,7 +236,7 @@ public class GameActivity extends AppCompatActivity implements GameEventsListene
     @Override
     protected void onResume() {
         super.onResume();
-        if(paused) {
+        if (paused) {
             if (level == 1) {
                 gam.levelOneTheme(this);
                 gam.idleCroak(this);

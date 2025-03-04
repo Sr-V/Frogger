@@ -8,6 +8,7 @@ import android.util.Log;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+
 import edu.pmdm.frogger.R;
 import edu.pmdm.frogger.utils.GameAudioManager;
 
@@ -51,6 +52,11 @@ public class GameEngine {
     // Variable para congelar el contador de tiempo
     private Long finalElapsedTime = null;
 
+    // NUEVO: Flag de pausa + tiempo de pausa
+    private boolean isPaused = false;
+    private long pauseStartTime = 0;
+    private long totalPausedTime = 0;
+
     private Bitmap originalLifeBitmap;
     private Bitmap lifeBitmap;
     private int blinkCounter = 0;
@@ -70,11 +76,10 @@ public class GameEngine {
         this.level = level;
         this.userCurrentLevel = userCurrentLevel;
         this.listener = listener;
-        this.gam = GameAudioManager.getInstance();
+        this.gam = GameAudioManager.getInstance(context);
         this.context = context;
 
         originalLifeBitmap = BitmapFactory.decodeResource(context.getResources(), R.drawable.frog_life);
-
     }
 
     private float[] generateLines(float start, float end, int count) {
@@ -120,8 +125,7 @@ public class GameEngine {
         lostByTime = false;
         finalElapsedTime = null;
 
-        // Establecer el tiempo según el nivel:
-        // Nivel 1: 60 segundos, Nivel 2: 45 segundos, Nivel 3: 30 segundos.
+        // Establecer el tiempo según el nivel
         if (level == 1) {
             levelTimeLimit = 60000;
         } else if (level == 2) {
@@ -153,7 +157,6 @@ public class GameEngine {
                 drawableObstacle = R.drawable.cars;
         }
 
-        // Factor multiplicador de velocidad según el nivel
         float speedMultiplier = 1.35f;
         if (level == 2) {
             speedMultiplier = 1.7f;
@@ -167,7 +170,6 @@ public class GameEngine {
             Obstacle car = new Obstacle(player.context, (int) carX, (int) carY, drawableObstacle);
             car.configureScale(mapHeight, 0.10f);
             car.setScreenWidth(screenWidth);
-            // Calcular la velocidad base y multiplicarla
             int baseSpeed = rand.nextInt(6) + 3;
             int newSpeed = (int) (baseSpeed * speedMultiplier);
             car.setSpeed(newSpeed);
@@ -176,19 +178,17 @@ public class GameEngine {
     }
 
     public void resetAfterDeath() {
-        // Reinicia los obstáculos
         resetObstacles();
-        // Reinicia la posición de la rana
         frogLineIndex = 0;
         frogColumnIndex = 2;
         float frogScaledWidth = player.getScaledWidth();
         float frogX = columnsX[frogColumnIndex] - (frogScaledWidth / 2f);
         float frogY = frogLines[frogLineIndex] * mapHeight;
         player.storeInitialPosition((int) frogX, (int) frogY);
-        // Reinicia el camino seguro (incluyendo la llave y piezas adicionales)
+
         Path.PathConfig config = Path.getPathConfigForLevel(level);
         path = new Path(player.context, screenWidth, mapHeight, config);
-        // Reinicia el tiempo del nivel
+
         levelStartTime = System.currentTimeMillis();
         finalElapsedTime = null;
         lostByTime = false;
@@ -197,14 +197,23 @@ public class GameEngine {
         }
     }
 
+    /**
+     * Lógica principal de update: si no está en pausa, calculamos el tiempo y actualizamos obstáculos/rana.
+     */
     public void update() {
         if (gameWon || gameOver) return;
+        if (isPaused) {
+            // Si está en pausa, no actualizamos nada
+            return;
+        }
 
-        long elapsed = System.currentTimeMillis() - levelStartTime;
+        long now = System.currentTimeMillis();
+        // Ajustamos el tiempo transcurrido restando el totalPausedTime
+        long elapsed = (now - levelStartTime) - totalPausedTime;
+
         if (elapsed >= levelTimeLimit) {
             lostByTime = true;
             gameOver = true;
-            // Congelar el contador de tiempo al alcanzar el límite
             finalElapsedTime = levelTimeLimit;
             if (listener != null) {
                 listener.onGameLost();
@@ -212,24 +221,26 @@ public class GameEngine {
             return;
         }
 
+        // Actualizamos la rana y obstáculos
         player.update();
         for (Obstacle obstacle : obstacles) {
             obstacle.update();
         }
 
-        // Comprobación de colisión con obstáculos.
+        // Comprobación de colisiones
         if (!player.isDead()) {
             for (Obstacle obstacle : obstacles) {
                 if (collisionManager.checkCollision(player, obstacle)) {
                     gam.playerDeath(context);
                     lives--;
+                    Log.d(TAG, "Colisión detectada. Vidas restantes: " + lives);
                     if (lives > 0) {
                         if (listener != null) listener.onButtonsBlocked(true);
                         player.playDeathAnimation();
                     } else {
                         gameOver = true;
                         if (finalElapsedTime == null) {
-                            finalElapsedTime = System.currentTimeMillis() - levelStartTime;
+                            finalElapsedTime = (now - levelStartTime) - totalPausedTime;
                         }
                         if (listener != null) listener.onGameLost();
                     }
@@ -238,25 +249,24 @@ public class GameEngine {
             }
         }
 
-        // Verificar si se recoge la llave (para niveles con llave).
+        // Verificar si se recoge la llave
         if (!player.isDead()) {
             path.checkKeyCollected(player);
         }
 
-        // Comprobación en la zona del camino.
+        // Comprobación en la zona del camino (agua/arena/espacio)
         if (!player.isDead()) {
             float pathTop = pathLines[pathLines.length - 1] * mapHeight;
             float pathBottom = pathLines[0] * mapHeight;
             float frogFootY = player.getBoundingBox().bottom;
             if (frogFootY >= pathTop && frogFootY <= pathBottom && !path.isFrogSafe(player)) {
                 lives--;
-                if(level == 1){
+                Log.d(TAG, "Colisión en zona de camino. Vidas restantes: " + lives);
+                if (level == 1) {
                     gam.playerDrowned(context);
-                }
-                if(level == 2){
+                } else if (level == 2) {
                     gam.playerSand(context);
-                }
-                if(level == 3){
+                } else if (level == 3) {
                     gam.playerFell(context);
                 }
                 if (lives > 0) {
@@ -265,7 +275,7 @@ public class GameEngine {
                 } else {
                     gameOver = true;
                     if (finalElapsedTime == null) {
-                        finalElapsedTime = System.currentTimeMillis() - levelStartTime;
+                        finalElapsedTime = (now - levelStartTime) - totalPausedTime;
                     }
                     if (listener != null) listener.onGameLost();
                 }
@@ -274,44 +284,48 @@ public class GameEngine {
     }
 
     public void draw(Canvas canvas) {
-        // Dibujar primero el camino seguro.
+        // Dibujar el camino
         if (path != null) {
             path.draw(canvas);
         }
-        // Dibujar la rana encima del camino.
+        // Rana
         player.draw(canvas);
-        // Dibujar los obstáculos encima de la rana.
+        // Obstáculos
         for (Obstacle obstacle : obstacles) {
             obstacle.draw(canvas);
         }
-
+        // Vidas
         drawLives(canvas);
     }
 
-    private void drawLives(Canvas canvas){
+    private void drawLives(Canvas canvas) {
         int lifeSpacing = 10;
         int lifeSize = lifeBitmap.getWidth();
         int startX = 20;
         int startY = 20;
 
-        for(int i = 0; i < lives; i++){
+        for (int i = 0; i < lives; i++) {
             int lifeX = startX + i * (lifeSize + lifeSpacing);
             int lifeY = startY;
 
-            if(i == lives - 1 && (blinkCounter / (BLINK_DURATION / 2)) % 2 == 0){
+            // Parpadeo de la última vida
+            if (i == lives - 1 && (blinkCounter / (BLINK_DURATION / 2)) % 2 == 0) {
                 continue;
             }
             canvas.drawBitmap(lifeBitmap, lifeX, lifeY, null);
         }
 
-        blinkCounter++;
-        if (blinkCounter >= BLINK_DURATION) {
-            blinkCounter = 0;
+        if (!isPaused) {
+            blinkCounter++;
+            if (blinkCounter >= BLINK_DURATION) {
+                blinkCounter = 0;
+            }
         }
     }
 
+    // --- Métodos de movimiento de la rana ---
     public void movePlayerUp() {
-        if (gameWon || gameOver) return;
+        if (gameWon || gameOver || isPaused) return;
         if (frogLineIndex < frogLines.length - 1) {
             frogLineIndex++;
             float frogScaledWidth = player.getScaledWidth();
@@ -321,8 +335,8 @@ public class GameEngine {
             player.moveUpSmall();
             if (frogLineIndex == frogLines.length - 1) {
                 gameWon = true;
-                // Congelar el contador de tiempo en el instante de la victoria
-                finalElapsedTime = System.currentTimeMillis() - levelStartTime;
+                long now = System.currentTimeMillis();
+                finalElapsedTime = (now - levelStartTime) - totalPausedTime;
                 Log.d(TAG, "¡Victoria! La rana ha llegado arriba.");
                 boolean shouldIncrementLevel = (level == userCurrentLevel);
                 if (listener != null) listener.onGameWon(shouldIncrementLevel);
@@ -331,7 +345,7 @@ public class GameEngine {
     }
 
     public void movePlayerLeft() {
-        if (gameWon || gameOver) return;
+        if (gameWon || gameOver || isPaused) return;
         if (frogColumnIndex > 0) {
             frogColumnIndex--;
             float frogScaledWidth = player.getScaledWidth();
@@ -343,7 +357,7 @@ public class GameEngine {
     }
 
     public void movePlayerRight() {
-        if (gameWon || gameOver) return;
+        if (gameWon || gameOver || isPaused) return;
         if (frogColumnIndex < columnsX.length - 1) {
             frogColumnIndex++;
             float frogScaledWidth = player.getScaledWidth();
@@ -355,7 +369,7 @@ public class GameEngine {
     }
 
     public void movePlayerDown() {
-        if (gameWon || gameOver) return;
+        if (gameWon || gameOver || isPaused) return;
         if (frogLineIndex > 0) {
             frogLineIndex--;
             float frogScaledWidth = player.getScaledWidth();
@@ -377,17 +391,47 @@ public class GameEngine {
 
     /**
      * Retorna el tiempo final transcurrido (congelado) o el tiempo actual si aún no se ha congelado.
+     * Ajustado por totalPausedTime para que no corra el tiempo durante la pausa.
      */
     public long getFinalElapsedTime() {
-        return finalElapsedTime != null ? finalElapsedTime : System.currentTimeMillis() - levelStartTime;
+        if (finalElapsedTime != null) {
+            return finalElapsedTime;
+        } else {
+            long now = System.currentTimeMillis();
+            return Math.max(0, (now - levelStartTime) - totalPausedTime);
+        }
     }
 
     public long getLevelTimeLimit() {
         return levelTimeLimit;
     }
 
-    // Getter para saber si se perdió por tiempo
+    public boolean isGameWon() {
+        return gameWon;
+    }
+
+    public boolean isGameOver() {
+        return gameOver;
+    }
+
     public boolean isLostByTime() {
         return lostByTime;
+    }
+
+    public boolean isPaused() {
+        return isPaused;
+    }
+
+    public void setPaused(boolean paused) {
+        if (this.isPaused == paused) return;
+        this.isPaused = paused;
+        if (paused) {
+            // Empezamos a contar la pausa
+            pauseStartTime = System.currentTimeMillis();
+        } else {
+            // Reanudamos: sumamos el tiempo que ha durado la pausa
+            long now = System.currentTimeMillis();
+            totalPausedTime += (now - pauseStartTime);
+        }
     }
 }

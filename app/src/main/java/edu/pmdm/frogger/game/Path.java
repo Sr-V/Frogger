@@ -24,7 +24,7 @@ public class Path {
     private int columns = 5;
     private int cellWidth, cellHeight;
     private PathConfig config;
-    private GameAudioManager gam = GameAudioManager.getInstance();
+    private GameAudioManager gam;
     private Context context;
 
     /**
@@ -42,6 +42,8 @@ public class Path {
         cellHeight = (int)(mapHeight * 0.10f);
         int pieceWidth = (int)(cellWidth * 0.75f);
         int pieceHeight = (int)(cellHeight * 0.75f);
+
+        gam = GameAudioManager.getInstance(context);
 
         basicPieces = new ArrayList<>();
         if (!config.hasKey) {
