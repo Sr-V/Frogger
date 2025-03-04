@@ -27,21 +27,24 @@ public class FirestoreManager {
     private static final String COLLECTION_USERS = "users";
     private static final String COLLECTION_LEVELS = "levels";
 
+    // Instancia de FirebaseFirestore para acceder a la base de datos
     private final FirebaseFirestore db;
+    // Instancia singleton de FirestoreManager
     private static FirestoreManager instance;
 
     /**
      * Constructor privado para implementar el patrón singleton.
+     * Obtiene la instancia de Firestore.
      */
     private FirestoreManager() {
-        // Obtiene la instancia de Firestore
+        // Obtiene la instancia de FirebaseFirestore
         db = FirebaseFirestore.getInstance();
     }
 
     /**
      * Método para obtener la instancia única de FirestoreManager.
      *
-     * @return instancia única de FirestoreManager.
+     * @return Instancia única de FirestoreManager.
      */
     public static FirestoreManager getInstance() {
         if (instance == null) {
@@ -88,6 +91,11 @@ public class FirestoreManager {
         userRef.get().addOnCompleteListener(listener);
     }
 
+    /**
+     * Obtiene todos los usuarios en la colección "users".
+     *
+     * @param listener Listener que manejará el resultado de la consulta.
+     */
     public void getAllUsers(OnCompleteListener<QuerySnapshot> listener){
         db.collection(COLLECTION_USERS)
                 .get()
@@ -113,6 +121,12 @@ public class FirestoreManager {
 
     /* ===== OPERACIONES CON NIVELES (SOLO LECTURA) ===== */
 
+    /**
+     * Obtiene la subcolección "maps" del usuario, que contiene información de cada nivel.
+     *
+     * @param uid      Identificador único del usuario.
+     * @param listener Listener que manejará el resultado de la consulta.
+     */
     public void getUserMaps(String uid, OnCompleteListener<QuerySnapshot> listener) {
         db.collection(COLLECTION_USERS)
                 .document(uid)
@@ -145,6 +159,7 @@ public class FirestoreManager {
      * @return Tarea asíncrona que indica el resultado de la operación.
      */
     public Task<Void> createOrUpdateUserMap(String uid, String levelId, Map<String, Object> levelData) {
+        // Referencia al documento del nivel en la subcolección "maps" del usuario
         DocumentReference mapRef = db.collection(COLLECTION_USERS)
                 .document(uid)
                 .collection("maps")
